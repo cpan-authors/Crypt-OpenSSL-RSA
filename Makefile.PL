@@ -29,6 +29,7 @@ WriteMakefile(
     },
     'OBJECT' => 'RSA.o',
     'LIBS'   => [openssl_lib_paths() . $libs],
+    'LDDLFLAGS' => openssl_lib_paths() . ' ' . $Config{lddlflags},
     'DEFINE' => '-DPERL5 -DOPENSSL_NO_KRB5',
 
     # perl-5.8/gcc-3.2 needs -DPERL5, and redhat9 likes -DOPENSSL_NO_KRB5
