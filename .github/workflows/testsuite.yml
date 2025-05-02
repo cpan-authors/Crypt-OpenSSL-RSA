@@ -22,10 +22,11 @@ jobs:
       AUTOMATED_TESTING: 1
       RELEASE_TESTING: 1
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
+      - run: openssl version
       - run: perl -V
       - name: uses install-with-cpm
         uses: perl-actions/install-with-cpm@v1
