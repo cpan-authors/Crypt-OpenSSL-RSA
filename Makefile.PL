@@ -49,9 +49,9 @@ WriteMakefile(
         },
         resources => {
             'license'    => 'http://dev.perl.org/licenses/',
-            'homepage'   => 'http://github.com/toddr/Crypt-OpenSSL-RSA',
-            'bugtracker' => 'https://github.com/toddr/Crypt-OpenSSL-RSA/issues',
-            'repository' => 'http://github.com/toddr/Crypt-OpenSSL-RSA',
+            'homepage'   => 'http://github.com/cpan-authors/Crypt-OpenSSL-RSA',
+            'bugtracker' => 'https://github.com/cpan-authors/Crypt-OpenSSL-RSA/issues',
+            'repository' => 'http://github.com/cpan-authors/Crypt-OpenSSL-RSA',
         }
     }
 );
