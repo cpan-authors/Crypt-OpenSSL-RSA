@@ -9,6 +9,11 @@ use Crypt::OpenSSL::Guess qw(openssl_inc_paths openssl_lib_paths);
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
 
+my $libs = ' -lssl -lcrypto';
+if ( $Config{osname} eq 'aix' ) {
+  $libs = $libs . ' -lz';
+}
+
 WriteMakefile(
     'NAME'             => 'Crypt::OpenSSL::RSA',
     'AUTHOR'           => 'Ian Robertson <iroberts@cpan.org>',
@@ -23,7 +28,7 @@ WriteMakefile(
         'Test::More'             => 0,
     },
     'OBJECT' => 'RSA.o',
-    'LIBS'   => [openssl_lib_paths() . ' -lssl -lcrypto'],
+    'LIBS'   => [openssl_lib_paths() . $libs],
     'LDDLFLAGS' => openssl_lib_paths() . ' ' . $Config{lddlflags},
     'DEFINE' => '-DPERL5 -DOPENSSL_NO_KRB5',
 
