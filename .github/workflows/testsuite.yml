@@ -22,10 +22,50 @@ jobs:
       AUTOMATED_TESTING: 1
       RELEASE_TESTING: 1
 
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
 
     steps:
       - uses: actions/checkout@v4
+      - run: openssl version
+      - run: perl -V
+      - name: uses install-with-cpm
+        uses: perl-actions/install-with-cpm@v1
+        with:
+          cpanfile: "cpanfile"
+      - name: Makefile.PL
+        run: perl -I$(pwd) Makefile.PL
+      - run: make && ( make test || prove -wbvm t/*.t )
+
+  openssl-matrix:
+    env:
+      PERL_USE_UNSAFE_INC: 0
+      AUTHOR_TESTING: 1
+      AUTOMATED_TESTING: 1
+      RELEASE_TESTING: 1
+
+    runs-on: ubuntu-latest
+    needs: [ubuntu]
+    name: "OpenSSL ${{ matrix.os-version }}"
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os-version:
+          - debian:buster       # OpenSSL 1.1.1
+          - debian:bullseye     # OpenSSL 1.1.1
+          - debian:bookworm     # OpenSSL 3.0.x
+          - ubuntu:20.04        # OpenSSL 1.1.1
+
+    container: ${{ matrix.os-version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          apt-get update &&
+          apt-get install -y openssl perl make gcc libssl-dev perl sudo curl
       - run: openssl version
       - run: perl -V
       - name: uses install-with-cpm
@@ -42,6 +82,7 @@ jobs:
 
   perl-versions:
       runs-on: ubuntu-latest
+      needs: [openssl-matrix]
       name: List Perl versions
       outputs:
         perl-versions: ${{ steps.action.outputs.perl-versions }}
@@ -64,7 +105,7 @@ jobs:
       RELEASE_TESTING: 1
 
     runs-on: ubuntu-latest
-    needs: [ubuntu,perl-versions]
+    needs: [openssl-matrix,perl-versions]
     name: "Perl ${{ matrix.perl-version }}"
 
     strategy:
@@ -76,6 +117,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - run: openssl version
       - run: perl -V
       - name: Deps for testing
         run: |
@@ -97,7 +139,7 @@ jobs:
       AUTOMATED_TESTING: 1
       RELEASE_TESTING: 0
 
-    needs: [ubuntu]
+    needs: [openssl-matrix, perl-versions]
     runs-on: windows-latest
 
     strategy:
@@ -119,6 +161,7 @@ jobs:
           C:\strawberry\perl\bin
           "@ |
             Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - run: openssl version
       - run: perl -V
       - name: Deps for testing
         run: cpanm --notest Crypt::OpenSSL::Random Crypt::OpenSSL::Guess
