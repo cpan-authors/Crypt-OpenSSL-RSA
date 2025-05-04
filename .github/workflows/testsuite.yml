@@ -57,15 +57,16 @@ jobs:
           - debian:buster       # OpenSSL 1.1.1
           - debian:bullseye     # OpenSSL 1.1.1
           - debian:bookworm     # OpenSSL 3.0.x
-          - ubuntu:20.04        # OpenSSL 1.1.1
+          - almalinux:9         # OpenSSL with new crypto policies (RHEL-compatible)
 
     container: ${{ matrix.os-version }}
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
-          apt-get update &&
-          apt-get install -y openssl perl make gcc libssl-dev perl sudo curl
+          (apt-get update &&
+          apt-get install -y openssl perl make gcc libssl-dev perl sudo curl) ||
+          (yum install --skip-broken -y openssl perl make gcc openssl-devel perl sudo curl)
       - run: openssl version
       - run: perl -V
       - name: uses install-with-cpm
@@ -74,7 +75,7 @@ jobs:
           cpanfile: "cpanfile"
       - name: Makefile.PL
         run: perl -I$(pwd) Makefile.PL
-      - run: make && ( make test || prove -wbvm t/*.t )
+      - run: make && prove -wbvm t/*.t
 
 #
 # List of Perl Versions available
