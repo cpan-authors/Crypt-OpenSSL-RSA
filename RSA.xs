@@ -324,9 +324,8 @@ SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
     EVP_PKEY_CTX *ctx;
 
     OSSL_LIB_CTX *ossllibctx = OSSL_LIB_CTX_new();
-    const char* propquery;
     if (public) {
-        ctx = EVP_PKEY_CTX_new_from_pkey(ossllibctx, (EVP_PKEY* )p_rsa->rsa, propquery);
+        ctx = EVP_PKEY_CTX_new_from_pkey(ossllibctx, (EVP_PKEY* )p_rsa->rsa, NULL);
     } else {
         ctx = EVP_PKEY_CTX_new((EVP_PKEY* )p_rsa->rsa, NULL);
     }
