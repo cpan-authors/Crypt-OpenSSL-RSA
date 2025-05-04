@@ -1,6 +1,9 @@
 Revision history for Perl extension Crypt::OpenSSL::RSA.
 
-0.34 TBD
+0.34_02 May 4 2025
+    - t/rsa.t needs to tolerate sha1 being disabled on rhel.
+
+0.34_01 May 3 2025
     - docs - plaintext = decrypt(cyphertext)
     - #44 - Fix issue when libz is not linked on AIX
     - #50 - Correct openssl version may not be found
