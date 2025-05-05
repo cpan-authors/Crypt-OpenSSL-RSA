@@ -1,5 +1,8 @@
 Revision history for Perl extension Crypt::OpenSSL::RSA.
 
+0.34 May 5 2025
+    - Production release.
+
 0.34_03 May 4 2025
     - Fix bug in rsa_crypt. Need to pass NULL
 
