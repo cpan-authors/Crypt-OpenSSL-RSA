@@ -5,7 +5,7 @@ use warnings;
 
 use Carp;    # Removing carp will break the XS code.
 
-our $VERSION = '0.34';
+our $VERSION = '0.35';
 
 use XSLoader;
 XSLoader::load 'Crypt::OpenSSL::RSA', $VERSION;
