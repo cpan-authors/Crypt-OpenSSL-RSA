@@ -10,7 +10,7 @@
 #include <openssl/pem.h>
 #include <openssl/rand.h>
 #include <openssl/ripemd.h>
-#if OPENSSL_VERSION_NUMBER < 0x30000000
+#if OPENSSL_VERSION_NUMBER >= 0x10000000 & OPENSSL_VERSION_NUMBER < 0x30000000
 #include <openssl/whrlpool.h>
 #endif
 #include <openssl/rsa.h>
