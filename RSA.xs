@@ -11,7 +11,9 @@
 #include <openssl/rand.h>
 #include <openssl/ripemd.h>
 #if OPENSSL_VERSION_NUMBER >= 0x10000000 & OPENSSL_VERSION_NUMBER < 0x30000000
+#ifndef LIBRESSL_VERSION_NUMBER
 #include <openssl/whrlpool.h>
+#endif
 #endif
 #include <openssl/rsa.h>
 #include <openssl/sha.h>
