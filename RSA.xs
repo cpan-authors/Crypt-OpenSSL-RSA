@@ -200,10 +200,10 @@ unsigned char* get_message_digest(SV* text_SV, int hash_method)
 {
     STRLEN text_length;
     unsigned char* text;
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    static unsigned char md[EVP_MAX_MD_SIZE];
-#endif
+    unsigned char *md;
+    static unsigned char m[EVP_MAX_MD_SIZE];
     text = (unsigned char*) SvPV(text_SV, text_length);
+    md = m;
 
     switch(hash_method)
     {
@@ -211,36 +211,36 @@ unsigned char* get_message_digest(SV* text_SV, int hash_method)
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
             return EVP_Q_digest(NULL, "MD5", NULL, text, text_length, md, NULL) ? md : NULL;
 #else
-            return MD5(text, text_length, NULL);
+            return MD5(text, text_length, md);
 #endif
             break;
         case NID_sha1:
-            return SHA1(text, text_length, NULL);
+            return SHA1(text, text_length, md);
             break;
 #ifdef SHA512_DIGEST_LENGTH
         case NID_sha224:
-            return SHA224(text, text_length, NULL);
+            return SHA224(text, text_length, md);
             break;
         case NID_sha256:
-            return SHA256(text, text_length, NULL);
+            return SHA256(text, text_length, md);
             break;
         case NID_sha384:
-            return SHA384(text, text_length, NULL);
+            return SHA384(text, text_length, md);
             break;
         case NID_sha512:
-            return SHA512(text, text_length, NULL);
+            return SHA512(text, text_length, md);
             break;
 #endif
         case NID_ripemd160:
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
             return EVP_Q_digest(NULL, "RIPEMD160", NULL, text, text_length, md, NULL) ? md : NULL;
 #else
-            return RIPEMD160(text, text_length, NULL);
+            return RIPEMD160(text, text_length, md);
 #endif
             break;
 #ifdef WHIRLPOOL_DIGEST_LENGTH
         case NID_whirlpool:
-            return WHIRLPOOL(text, text_length, NULL);
+            return WHIRLPOOL(text, text_length, md);
             break;
 #endif
         default:
