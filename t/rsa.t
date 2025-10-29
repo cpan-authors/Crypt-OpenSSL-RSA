@@ -124,7 +124,7 @@ $plaintext .= $plaintext x 5;
 
 my @paddings = qw/pkcs1_oaep pkcs1_pss/;
 foreach my $padding (@paddings) {
-  my $p = "use_$padding\_padding";
+  my $p = "use_${padding}_padding";
 
   $rsa->$p;
   $rsa_pub->$p;
