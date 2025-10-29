@@ -980,7 +980,7 @@ sign(p_rsa, text_SV)
     CHECK_OPEN_SSL(ctx);
     CHECK_OPEN_SSL(EVP_PKEY_sign_init(ctx));
     /* FIXME: Issue setting padding in some cases */
-    EVP_PKEY_CTX_set_rsa_padding(ctx, p_rsa->padding);
+    CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_padding(ctx, p_rsa->padding) > 0);
 
     EVP_MD* md = get_md_bynid(p_rsa->hashMode);
     CHECK_OPEN_SSL(md != NULL);
@@ -1040,7 +1040,7 @@ PPCODE:
     CHECK_OPEN_SSL(ctx);
     CHECK_OPEN_SSL(EVP_PKEY_verify_init(ctx) == 1);
     /* FIXME: Issue setting padding in some cases */
-    EVP_PKEY_CTX_set_rsa_padding(ctx, p_rsa->padding);
+    CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_padding(ctx, p_rsa->padding) > 0);
 
     EVP_MD* md = get_md_bynid(p_rsa->hashMode);
     CHECK_OPEN_SSL(md != NULL);
