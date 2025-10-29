@@ -246,10 +246,12 @@ Encrypting user data directly with RSA is insecure.
 PKCS #1 v1.5 padding has been disabled as it is nearly impossible to use this
 padding method in a secure manner.  It is known to be vulnerable to timing
 based side channel attacks.
+L<Marvin Attack|https://github.com/tomato42/marvin-toolkit/blob/master/README.md>
 
 use_pkcs1_padding() now sets the padding method to use_pkcs1_pss_padding. 
 
-L<Marvin Attack|https://github.com/tomato42/marvin-toolkit/blob/master/README.md>
+B<Note>: RSA-PSS cannot be used for encryption/decryption and results in a
+fatal error.  Call C<use_pkcs1_oaep_padding> for encryption operations. 
 
 =item use_pkcs1_oaep_padding
 

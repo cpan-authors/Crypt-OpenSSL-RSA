@@ -323,6 +323,10 @@ SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
     size = EVP_PKEY_get_size(p_rsa->rsa);
     CHECK_NEW(to, size, UNSIGNED_CHAR);
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
+
+    if(p_rsa->padding == RSA_PKCS1_PSS_PADDING)
+        croak("PKCS#1 v2.1 RSA-PSS cannot be used for encryption operations call \"use_pkcs1_oaep_padding\" instead.");
+
     EVP_PKEY_CTX *ctx;
 
     OSSL_LIB_CTX *ossllibctx = OSSL_LIB_CTX_new();
