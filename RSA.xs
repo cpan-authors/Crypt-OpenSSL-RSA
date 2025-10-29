@@ -927,13 +927,19 @@ void
 use_pkcs1_padding(p_rsa)
     rsaData* p_rsa;
   CODE:
-    croak("PKCS#1 1.5 is disabled as it is known to be vulnerable to marvin attacks.");
+    p_rsa->padding = RSA_PKCS1_PSS_PADDING;
 
 void
 use_pkcs1_oaep_padding(p_rsa)
     rsaData* p_rsa;
   CODE:
     p_rsa->padding = RSA_PKCS1_OAEP_PADDING;
+
+void
+use_pkcs1_pss_padding(p_rsa)
+    rsaData* p_rsa;
+  CODE:
+    p_rsa->padding = RSA_PKCS1_PSS_PADDING;
 
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
 
@@ -977,7 +983,10 @@ sign(p_rsa, text_SV)
 
     int md_status;
     CHECK_OPEN_SSL((md_status = EVP_PKEY_CTX_set_signature_md(ctx, md)) > 0);
-
+    if (p_rsa->padding == RSA_PKCS1_PSS_PADDING) {
+        CHECK_OPEN_SSL((md_status = EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, md)) > 0);
+        CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_pss_saltlen(ctx, RSA_PSS_SALTLEN_DIGEST) > 0);
+    }
     CHECK_OPEN_SSL(EVP_PKEY_sign(ctx, NULL, &signature_length, digest, get_digest_length(p_rsa->hashMode)) == 1);
 
     //signature = OPENSSL_malloc(signature_length);
@@ -1034,6 +1043,10 @@ PPCODE:
 
     int md_status;
     CHECK_OPEN_SSL((md_status = EVP_PKEY_CTX_set_signature_md(ctx, md)) > 0);
+    if (p_rsa->padding == RSA_PKCS1_PSS_PADDING) {
+        CHECK_OPEN_SSL((md_status = EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, md)) > 0);
+        CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_pss_saltlen(ctx, RSA_PSS_SALTLEN_DIGEST) > 0);
+    }
 
     switch (EVP_PKEY_verify(ctx, sig, sig_length, digest, get_digest_length(p_rsa->hashMode)))
 #else
