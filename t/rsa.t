@@ -6,7 +6,7 @@ use Crypt::OpenSSL::RSA;
 use Crypt::OpenSSL::Guess qw(openssl_version);
 
 BEGIN {
-    plan tests => 97 + ( UNIVERSAL::can( "Crypt::OpenSSL::RSA", "use_sha512_hash" ) ? 4 * 5 : 0 ) + ( UNIVERSAL::can( "Crypt::OpenSSL::RSA", "use_whirlpool_hash" ) ? 1 * 5 : 0 );
+    plan tests => 67 + ( UNIVERSAL::can( "Crypt::OpenSSL::RSA", "use_sha512_hash" ) ? 4 * 5 : 0 ) + ( UNIVERSAL::can( "Crypt::OpenSSL::RSA", "use_whirlpool_hash" ) ? 1 * 5 : 0 );
 }
 
 sub _Test_Encrypt_And_Decrypt {
@@ -37,6 +37,7 @@ sub _Test_Sign_And_Verify {
     my $sig = eval { $rsa->sign($plaintext) };
   SKIP: {
         skip "OpenSSL error: illegal or unsupported padding mode - $hash", 5 if $@ =~ /illegal or unsupported padding mode/i;
+        skip "OpenSSL error: invalid digest - $hash", 5 if $@ =~ /invalid digest/i;
         ok( $rsa_pub->verify( $plaintext, $sig ), "rsa_pub verify $hash");
 
         my $false_sig = unpack "H*", $sig;
@@ -121,7 +122,7 @@ _check_for_croak(
 
 $plaintext .= $plaintext x 5;
 
-my @paddings = qw/pkcs1 pkcs1_oaep pkcs1_pss/;
+my @paddings = qw/pkcs1_oaep pkcs1_pss/;
 foreach my $padding (@paddings) {
   my $p = "use_$padding\_padding";
 
