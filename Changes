@@ -1,5 +1,8 @@
 Revision history for Perl extension Crypt::OpenSSL::RSA.
 
+0.37 Oct 29 2025
+     - Fix libressl bitwise logic error in RSA.xs
+
 0.36 Oct 29 2025
      - Fix old openssl on strawberry does not include whrlpool.h
      - libressl message digest functions md cannot be NULL
