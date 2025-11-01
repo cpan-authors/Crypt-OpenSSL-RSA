@@ -339,7 +339,11 @@ SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
     CHECK_OPEN_SSL(ctx);
 
     CHECK_OPEN_SSL(init_crypt(ctx) == 1);
-    CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_padding(ctx, p_rsa->padding) > 0);
+    int crypt_pad = p_rsa->padding;
+    if (p_rsa->padding != RSA_NO_PADDING) {
+        crypt_pad = RSA_PKCS1_OAEP_PADDING;
+    }
+    CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_padding(ctx, crypt_pad) > 0);
     CHECK_OPEN_SSL(p_crypt(ctx, NULL, &to_length, from, from_length) == 1);
     CHECK_OPEN_SSL(p_crypt(ctx, to, &to_length, from, from_length) == 1);
 
@@ -980,7 +984,11 @@ sign(p_rsa, text_SV)
     CHECK_OPEN_SSL(ctx);
     CHECK_OPEN_SSL(EVP_PKEY_sign_init(ctx));
     /* FIXME: Issue setting padding in some cases */
-    CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_padding(ctx, p_rsa->padding) > 0);
+    int sign_pad = p_rsa->padding;
+    if (p_rsa->padding != RSA_NO_PADDING) {
+        sign_pad = RSA_PKCS1_PSS_PADDING;
+    }
+    CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_padding(ctx, sign_pad) > 0);
 
     EVP_MD* md = get_md_bynid(p_rsa->hashMode);
     CHECK_OPEN_SSL(md != NULL);
@@ -1040,8 +1048,11 @@ PPCODE:
     CHECK_OPEN_SSL(ctx);
     CHECK_OPEN_SSL(EVP_PKEY_verify_init(ctx) == 1);
     /* FIXME: Issue setting padding in some cases */
-    CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_padding(ctx, p_rsa->padding) > 0);
-
+    int verify_pad = p_rsa->padding;
+    if (p_rsa->padding != RSA_NO_PADDING) {
+        verify_pad = RSA_PKCS1_PSS_PADDING;
+    }
+    CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_padding(ctx, verify_pad) > 0);
     EVP_MD* md = get_md_bynid(p_rsa->hashMode);
     CHECK_OPEN_SSL(md != NULL);
 
