@@ -348,6 +348,7 @@ SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
     CHECK_OPEN_SSL(p_crypt(ctx, to, &to_length, from, from_length) == 1);
 
     EVP_PKEY_CTX_free(ctx);
+    OSSL_LIB_CTX_free(ossllibctx);
 #else
     to_length = p_crypt(
        from_length, from, (unsigned char*) to, p_rsa->rsa, p_rsa->padding);
@@ -1008,6 +1009,8 @@ sign(p_rsa, text_SV)
 
     CHECK_OPEN_SSL(EVP_PKEY_sign(ctx, signature, &signature_length, digest, get_digest_length(p_rsa->hashMode)) == 1);
     CHECK_OPEN_SSL(signature);
+    EVP_MD_free(md);
+    EVP_PKEY_CTX_free(ctx);
 #else
     CHECK_OPEN_SSL(RSA_sign(p_rsa->hashMode,
                             digest,
@@ -1084,6 +1087,10 @@ PPCODE:
             CHECK_OPEN_SSL(0);
             break;
     }
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    EVP_MD_free(md);
+    EVP_PKEY_CTX_free(ctx);
+#endif
 }
 
 int
