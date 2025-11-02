@@ -16,7 +16,7 @@ Crypt::OpenSSL::RSA - RSA encoding and decoding, using the openSSL libraries
     $ciphertext = $rsa->encrypt($plaintext);
 
     $rsa_priv = Crypt::OpenSSL::RSA->new_private_key($key_string);
-    $plaintext = $rsa->encrypt($ciphertext);
+    $plaintext = $rsa->decrypt($ciphertext);
 
     $rsa = Crypt::OpenSSL::RSA->generate_key(1024); # or
     $rsa = Crypt::OpenSSL::RSA->generate_key(1024, $prime);
@@ -30,6 +30,15 @@ Crypt::OpenSSL::RSA - RSA encoding and decoding, using the openSSL libraries
     $rsa_priv->use_md5_hash(); # insecure. use_sha256_hash or use_sha1_hash are the default
     $signature = $rsa_priv->sign($plaintext);
     print "Signed correctly\n" if ($rsa->verify($plaintext, $signature));
+
+# SECURITY
+
+Version 0.35 makes the use of PKCS#1 v1.5 padding a fatal error.  It is
+very difficult to implement PKCS#1 v1.5 padding securely.  If you are still
+using RSA in in general, you should be looking at alternative encryption
+algorithms.  Version 0.36 implements RSA-PSS padding (PKCS#1 v2.1) and makes
+setting an invalid padding a fatal error.  Note, PKCS1\_OAEP can only be used
+for encryption and PKCS1\_PSS can only be used for signing.
 
 # DESCRIPTION
 
@@ -53,6 +62,10 @@ this (never documented) behavior is no longer the case.
 
     The padding is set to PKCS1\_OAEP, but can be changed with the
     `use_xxx_padding` methods.
+
+    Note, PKCS1\_OAEP can only be used for encryption.  You must specifically
+    call use\_pkcs1\_pss\_padding (or use\_pkcs1\_pss\_padding) prior to signing
+    operations.
 
 - new\_private\_key
 
@@ -165,6 +178,18 @@ this (never documented) behavior is no longer the case.
 
     Check the signature on a text.
 
+# Padding Methods
+
+Versions prior to 0.35 allowed using pkcs1 padding for both encryption
+and signature operations but has been disabled for security reasons.
+
+While **use\_no\_padding** can be used for encryption or signature operations
+**use\_pkcs1\_pss\_padding** is used for signature operations and
+**use\_pkcs1\_oaep\_padding** is used for encryption operations.
+
+Version 0.38 sets the appropriate padding for each operation unless
+**use\_no\_padding** is called before either operation.
+
 - use\_no\_padding
 
     Use raw RSA encryption. This mode should only be used to implement
@@ -173,15 +198,28 @@ this (never documented) behavior is no longer the case.
 
 - use\_pkcs1\_padding
 
-    Use PKCS #1 v1.5 padding. This currently is the most widely used mode
-    of padding.
+    PKCS #1 v1.5 padding has been disabled as it is nearly impossible to use this
+    padding method in a secure manner.  It is known to be vulnerable to timing
+    based side channel attacks.  use\_pkcs1\_padding() results in a fatal error.
+
+    [Marvin Attack](https://github.com/tomato42/marvin-toolkit/blob/master/README.md)
 
 - use\_pkcs1\_oaep\_padding
 
     Use `EME-OAEP` padding as defined in PKCS #1 v2.0 with SHA-1, MGF1 and
     an empty encoding parameter. This mode of padding is recommended for
     all new applications.  It is the default mode used by
-    `Crypt::OpenSSL::RSA`.
+    `Crypt::OpenSSL::RSA` but is only valid for encryption/decryption.
+
+- use\_pkcs1\_pss\_padding
+
+    Use `RSA-PSS` padding as defined in PKCS#1 v2.1.  In general, RSA-PSS
+    should be used as a replacement for RSA-PKCS#1 v1.5.  The module specifies
+    the message digest being requested and the appropriate mgf1 setting and
+    salt length for the digest.
+
+    **Note**: RSA-PSS cannot be used for encryption/decryption and results in a
+    fatal error.  Call `use_pkcs1_oaep_padding` for encryption operations. 
 
 - use\_sslv23\_padding
 
@@ -189,6 +227,8 @@ this (never documented) behavior is no longer the case.
     denotes that the server is SSL3 capable.
 
     Not available since OpenSSL 3.
+
+# Hash/Digest Methods
 
 - use\_md5\_hash
 

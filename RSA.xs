@@ -339,11 +339,16 @@ SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
     CHECK_OPEN_SSL(ctx);
 
     CHECK_OPEN_SSL(init_crypt(ctx) == 1);
-    CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_padding(ctx, p_rsa->padding) > 0);
+    int crypt_pad = p_rsa->padding;
+    if (p_rsa->padding != RSA_NO_PADDING) {
+        crypt_pad = RSA_PKCS1_OAEP_PADDING;
+    }
+    CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_padding(ctx, crypt_pad) > 0);
     CHECK_OPEN_SSL(p_crypt(ctx, NULL, &to_length, from, from_length) == 1);
     CHECK_OPEN_SSL(p_crypt(ctx, to, &to_length, from, from_length) == 1);
 
     EVP_PKEY_CTX_free(ctx);
+    OSSL_LIB_CTX_free(ossllibctx);
 #else
     to_length = p_crypt(
        from_length, from, (unsigned char*) to, p_rsa->rsa, p_rsa->padding);
@@ -980,7 +985,11 @@ sign(p_rsa, text_SV)
     CHECK_OPEN_SSL(ctx);
     CHECK_OPEN_SSL(EVP_PKEY_sign_init(ctx));
     /* FIXME: Issue setting padding in some cases */
-    CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_padding(ctx, p_rsa->padding) > 0);
+    int sign_pad = p_rsa->padding;
+    if (p_rsa->padding != RSA_NO_PADDING) {
+        sign_pad = RSA_PKCS1_PSS_PADDING;
+    }
+    CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_padding(ctx, sign_pad) > 0);
 
     EVP_MD* md = get_md_bynid(p_rsa->hashMode);
     CHECK_OPEN_SSL(md != NULL);
@@ -1000,6 +1009,8 @@ sign(p_rsa, text_SV)
 
     CHECK_OPEN_SSL(EVP_PKEY_sign(ctx, signature, &signature_length, digest, get_digest_length(p_rsa->hashMode)) == 1);
     CHECK_OPEN_SSL(signature);
+    EVP_MD_free(md);
+    EVP_PKEY_CTX_free(ctx);
 #else
     CHECK_OPEN_SSL(RSA_sign(p_rsa->hashMode,
                             digest,
@@ -1040,8 +1051,11 @@ PPCODE:
     CHECK_OPEN_SSL(ctx);
     CHECK_OPEN_SSL(EVP_PKEY_verify_init(ctx) == 1);
     /* FIXME: Issue setting padding in some cases */
-    CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_padding(ctx, p_rsa->padding) > 0);
-
+    int verify_pad = p_rsa->padding;
+    if (p_rsa->padding != RSA_NO_PADDING) {
+        verify_pad = RSA_PKCS1_PSS_PADDING;
+    }
+    CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_padding(ctx, verify_pad) > 0);
     EVP_MD* md = get_md_bynid(p_rsa->hashMode);
     CHECK_OPEN_SSL(md != NULL);
 
@@ -1073,6 +1087,10 @@ PPCODE:
             CHECK_OPEN_SSL(0);
             break;
     }
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    EVP_MD_free(md);
+    EVP_PKEY_CTX_free(ctx);
+#endif
 }
 
 int
