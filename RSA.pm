@@ -85,7 +85,9 @@ Crypt::OpenSSL::RSA - RSA encoding and decoding, using the openSSL libraries
 Version 0.35 makes the use of PKCS#1 v1.5 padding a fatal error.  It is
 very difficult to implement PKCS#1 v1.5 padding securely.  If you are still
 using RSA in in general, you should be looking at alternative encryption
-algorithms.
+algorithms.  Version 0.36 implements RSA-PSS padding (PKCS#1 v2.1) and makes
+setting an invalid padding a fatal error.  Note, PKCS1_OAEP can only be used
+for encryption and PKCS1_PSS can only be used for signing.
 
 =head1 DESCRIPTION
 
@@ -111,6 +113,10 @@ C<-----BEGIN...-----> and C<-----END...-----> lines.
 
 The padding is set to PKCS1_OAEP, but can be changed with the
 C<use_xxx_padding> methods.
+
+Note, PKCS1_OAEP can only be used for encryption.  You must specifically
+call use_pkcs1_pss_padding (or use_pkcs1_pss_padding) prior to signing
+operations.
 
 =item new_private_key
 
@@ -235,6 +241,22 @@ Sign a string using the secret (portion of the) key.
 
 Check the signature on a text.
 
+=back
+
+=head1 Padding Methods
+
+Versions prior to 0.35 allowed using pkcs1 padding for both encryption
+and signature operations but has been disabled for security reasons.
+
+While B<use_no_padding> can be used for encryption or signature operations
+B<use_pkcs1_pss_padding> is used for signature operations and
+B<use_pkcs1_oaep_padding> is used for encryption operations.
+
+Version 0.38 sets the appropriate padding for each operation unless
+B<use_no_padding> is called before either operation.
+
+=over
+
 =item use_no_padding
 
 Use raw RSA encryption. This mode should only be used to implement
@@ -254,7 +276,7 @@ L<Marvin Attack|https://github.com/tomato42/marvin-toolkit/blob/master/README.md
 Use C<EME-OAEP> padding as defined in PKCS #1 v2.0 with SHA-1, MGF1 and
 an empty encoding parameter. This mode of padding is recommended for
 all new applications.  It is the default mode used by
-C<Crypt::OpenSSL::RSA>.
+C<Crypt::OpenSSL::RSA> but is only valid for encryption/decryption.
 
 =item use_pkcs1_pss_padding
 
@@ -272,6 +294,12 @@ Use C<PKCS #1 v1.5> padding with an SSL-specific modification that
 denotes that the server is SSL3 capable.
 
 Not available since OpenSSL 3.
+
+=back
+
+=head1 Hash/Digest Methods
+
+=over
 
 =item use_md5_hash
 
