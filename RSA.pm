@@ -255,6 +255,11 @@ B<use_pkcs1_oaep_padding> is used for encryption operations.
 Version 0.38 sets the appropriate padding for each operation unless
 B<use_no_padding> is called before either operation.
 
+B<Note:> while C<pkcs1-pss> is the effective replacement for <pkcs1> your
+use case may require some additional steps.  JSON Web Tokens (JWT) for
+instance require the algorithm to be changed from "RS256" for "pkcs1"
+(SHA1256) to "PS256" for "pkcs1-pss" (SHA-256 and MGF1 with SHA-256)
+
 =over
 
 =item use_no_padding
