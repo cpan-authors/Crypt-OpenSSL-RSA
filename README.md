@@ -190,6 +190,11 @@ While **use\_no\_padding** can be used for encryption or signature operations
 Version 0.38 sets the appropriate padding for each operation unless
 **use\_no\_padding** is called before either operation.
 
+**Note:** while "pkcs1-pss" is the effective replacement for "pkcs1" your
+use case may require some additional steps.  JSON Web Tokens (JWT) for
+instance require the algorithm to be changed from "RS256" for "pkcs1"
+(SHA1256) to "PS256" for "pkcs1-pss" (SHA-256 and MGF1 with SHA-256)
+
 - use\_no\_padding
 
     Use raw RSA encryption. This mode should only be used to implement
