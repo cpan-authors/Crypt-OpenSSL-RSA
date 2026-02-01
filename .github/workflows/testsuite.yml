@@ -54,7 +54,7 @@ jobs:
       fail-fast: false
       matrix:
         os-version:
-          - debian:buster       # OpenSSL 1.1.1
+        #  - debian:buster       # OpenSSL 1.1.1
           - debian:bullseye     # OpenSSL 1.1.1
           - debian:bookworm     # OpenSSL 3.0.x
           - almalinux:9         # OpenSSL with new crypto policies (RHEL-compatible)
