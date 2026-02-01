@@ -61,7 +61,7 @@ jobs:
 
     container: ${{ matrix.os-version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install dependencies using apt-get
         if: ${{ matrix.os-version == 'debian:bullseye' || matrix.os-version == 'debian:bookworm' }}
         run: |
