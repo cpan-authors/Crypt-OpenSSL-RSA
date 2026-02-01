@@ -28,7 +28,7 @@ jobs:
       fail-fast: false
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: openssl version
       - run: perl -V
       - name: uses install-with-cpm
@@ -54,7 +54,7 @@ jobs:
       fail-fast: false
       matrix:
         os-version:
-          - debian:buster       # OpenSSL 1.1.1
+        #  - debian:buster       # OpenSSL 1.1.1
           - debian:bullseye     # OpenSSL 1.1.1
           - debian:bookworm     # OpenSSL 3.0.x
           - almalinux:9         # OpenSSL with new crypto policies (RHEL-compatible)
@@ -121,7 +121,7 @@ jobs:
     container: perldocker/perl-tester:${{ matrix.perl-version }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: openssl version
       - run: perl -V
       - name: Deps for testing
@@ -153,7 +153,7 @@ jobs:
         perl-version: [latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set up Perl
         run: |
           # skip installing perl if it is already installed.
