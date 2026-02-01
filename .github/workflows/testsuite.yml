@@ -28,7 +28,7 @@ jobs:
       fail-fast: false
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: openssl version
       - run: perl -V
       - name: uses install-with-cpm
@@ -61,7 +61,7 @@ jobs:
 
     container: ${{ matrix.os-version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install dependencies
         run: |
           (apt-get update &&
@@ -117,7 +117,7 @@ jobs:
     container: perldocker/perl-tester:${{ matrix.perl-version }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: openssl version
       - run: perl -V
       - name: Deps for testing
@@ -149,7 +149,7 @@ jobs:
         perl-version: [latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set up Perl
         run: |
           # skip installing perl if it is already installed.
