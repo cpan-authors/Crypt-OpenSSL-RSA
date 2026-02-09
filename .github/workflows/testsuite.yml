@@ -57,13 +57,14 @@ jobs:
         #  - debian:buster       # OpenSSL 1.1.1
           - debian:bullseye     # OpenSSL 1.1.1
           - debian:bookworm     # OpenSSL 3.0.x
+          - debian:trixie       # OpenSSL 3.4.x (Debian 13)
           - almalinux:9         # OpenSSL with new crypto policies (RHEL-compatible)
 
     container: ${{ matrix.os-version }}
     steps:
       - uses: actions/checkout@v6
       - name: Install dependencies using apt-get
-        if: ${{ matrix.os-version == 'debian:bullseye' || matrix.os-version == 'debian:bookworm' }}
+        if: ${{ startsWith(matrix.os-version, 'debian:') }}
         run: |
           apt-get update
           apt-get install -y openssl perl make gcc libssl-dev sudo curl

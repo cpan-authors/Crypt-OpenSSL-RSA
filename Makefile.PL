@@ -47,13 +47,13 @@ WriteMakefile(
             'Crypt::OpenSSL::Guess' => '0.11',
         },
         build_requires => {
-            'Test' => 0,    # For testing
+            'Test::More' => 0,
         },
         resources => {
-            'license'    => 'http://dev.perl.org/licenses/',
-            'homepage'   => 'http://github.com/cpan-authors/Crypt-OpenSSL-RSA',
+            'license'    => 'https://dev.perl.org/licenses/',
+            'homepage'   => 'https://github.com/cpan-authors/Crypt-OpenSSL-RSA',
             'bugtracker' => 'https://github.com/cpan-authors/Crypt-OpenSSL-RSA/issues',
-            'repository' => 'http://github.com/cpan-authors/Crypt-OpenSSL-RSA',
+            'repository' => 'https://github.com/cpan-authors/Crypt-OpenSSL-RSA',
         }
     }
 );
