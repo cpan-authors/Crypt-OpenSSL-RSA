@@ -555,6 +555,11 @@ _new_key_from_parameters(proto, n, e, d, p, q)
     BIGNUM* dmq1 = NULL;
     BIGNUM* iqmp = NULL;
     int error;
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    OSSL_PARAM *params = NULL;
+    EVP_PKEY_CTX *pctx = NULL;
+    OSSL_PARAM_BLD *params_build = NULL;
+#endif
   CODE:
 {
     if (!(n && e))
@@ -562,11 +567,10 @@ _new_key_from_parameters(proto, n, e, d, p, q)
         croak("At least a modulus and public key must be provided");
     }
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    OSSL_PARAM *params = NULL;
-    EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_from_name(NULL, "RSA", NULL);
+    pctx = EVP_PKEY_CTX_new_from_name(NULL, "RSA", NULL);
     CHECK_OPEN_SSL(pctx != NULL);
     CHECK_OPEN_SSL(EVP_PKEY_fromdata_init(pctx) > 0);
-    OSSL_PARAM_BLD *params_build = OSSL_PARAM_BLD_new();
+    params_build = OSSL_PARAM_BLD_new();
     CHECK_OPEN_SSL(params_build)
 #else
     CHECK_OPEN_SSL(rsa = RSA_new());
@@ -645,7 +649,9 @@ _new_key_from_parameters(proto, n, e, d, p, q)
         int status = EVP_PKEY_fromdata(pctx, &rsa, EVP_PKEY_KEYPAIR, params);
         THROW( status > 0 && rsa != NULL );
         EVP_PKEY_CTX* test_ctx = EVP_PKEY_CTX_new_from_pkey(NULL, rsa, NULL);
-        THROW(EVP_PKEY_check(test_ctx) == 1);
+        int check_ok = EVP_PKEY_check(test_ctx);
+        EVP_PKEY_CTX_free(test_ctx);
+        THROW(check_ok == 1);
 #else
         THROW(RSA_set0_crt_params(rsa, dmp1, dmq1, iqmp));
 #endif
@@ -670,6 +676,10 @@ _new_key_from_parameters(proto, n, e, d, p, q)
         THROW(params != NULL);
 
         int status = EVP_PKEY_fromdata(pctx, &rsa, EVP_PKEY_KEYPAIR, params);
+        OSSL_PARAM_BLD_free(params_build);
+        OSSL_PARAM_free(params);
+        params_build = NULL;
+        params = NULL;
         THROW( status > 0 && rsa != NULL );
 #else
         CHECK_OPEN_SSL(RSA_set0_key(rsa, n, e, d));
@@ -691,13 +701,23 @@ _new_key_from_parameters(proto, n, e, d, p, q)
         if (dmq1) BN_clear_free(dmq1);
         if (iqmp) BN_clear_free(iqmp);
         if (ctx) BN_CTX_free(ctx);
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+        if (params_build) OSSL_PARAM_BLD_free(params_build);
+        if (params) OSSL_PARAM_free(params);
+#endif
         if (error)
         {
             EVP_PKEY_free(rsa);
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+            EVP_PKEY_CTX_free(pctx);
+#endif
             CHECK_OPEN_SSL(0);
         }
     }
     end:
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    EVP_PKEY_CTX_free(pctx);
+#endif
 
   OUTPUT:
     RETVAL
@@ -762,6 +782,19 @@ PPCODE:
     XPUSHs(cor_bn2sv(dmp1));
     XPUSHs(cor_bn2sv(dmq1));
     XPUSHs(cor_bn2sv(iqmp));
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    /* EVP_PKEY_get_bn_param() allocates new BIGNUMs (unlike the pre-3.x
+       getters which return internal pointers).  cor_bn2sv() duplicates
+       them via BN_dup(), so we must free the originals here. */
+    BN_free(n);
+    BN_free(e);
+    BN_free(d);
+    BN_free(p);
+    BN_free(q);
+    BN_free(dmp1);
+    BN_free(dmq1);
+    BN_free(iqmp);
+#endif
 }
 
 SV*
@@ -1050,6 +1083,8 @@ PPCODE:
 
     CHECK_OPEN_SSL(digest = get_message_digest(text_SV, p_rsa->hashMode));
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    {
+    int verify_result;
     EVP_PKEY_CTX *ctx;
     ctx = EVP_PKEY_CTX_new(p_rsa->rsa, NULL /* no engine */);
     CHECK_OPEN_SSL(ctx);
@@ -1070,15 +1105,10 @@ PPCODE:
         CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_pss_saltlen(ctx, RSA_PSS_SALTLEN_DIGEST) > 0);
     }
 
-    switch (EVP_PKEY_verify(ctx, sig, sig_length, digest, get_digest_length(p_rsa->hashMode)))
-#else
-    switch(RSA_verify(p_rsa->hashMode,
-                      digest,
-                      get_digest_length(p_rsa->hashMode),
-                      sig,
-                      sig_length,
-                      p_rsa->rsa))
-#endif
+    verify_result = EVP_PKEY_verify(ctx, sig, sig_length, digest, get_digest_length(p_rsa->hashMode));
+    EVP_MD_free(md);
+    EVP_PKEY_CTX_free(ctx);
+    switch(verify_result)
     {
         case 0:
             ERR_clear_error();
@@ -1091,9 +1121,26 @@ PPCODE:
             CHECK_OPEN_SSL(0);
             break;
     }
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    EVP_MD_free(md);
-    EVP_PKEY_CTX_free(ctx);
+    }
+#else
+    switch(RSA_verify(p_rsa->hashMode,
+                      digest,
+                      get_digest_length(p_rsa->hashMode),
+                      sig,
+                      sig_length,
+                      p_rsa->rsa))
+    {
+        case 0:
+            ERR_clear_error();
+            XSRETURN_NO;
+            break;
+        case 1:
+            XSRETURN_YES;
+            break;
+        default:
+            CHECK_OPEN_SSL(0);
+            break;
+    }
 #endif
 }
 
