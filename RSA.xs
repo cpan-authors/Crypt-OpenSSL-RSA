@@ -12,7 +12,9 @@
 #include <openssl/ripemd.h>
 #if OPENSSL_VERSION_NUMBER >= 0x10000000 && OPENSSL_VERSION_NUMBER < 0x30000000
 #ifndef LIBRESSL_VERSION_NUMBER
+#ifndef OPENSSL_NO_WHIRLPOOL
 #include <openssl/whrlpool.h>
+#endif
 #endif
 #endif
 #include <openssl/rsa.h>
