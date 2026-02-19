@@ -974,48 +974,56 @@ sign(p_rsa, text_SV)
     UNSIGNED_CHAR *signature;
     unsigned char* digest;
     SIZE_T_UNSIGNED_INT signature_length;
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    EVP_PKEY_CTX *ctx = NULL;
+    EVP_MD *md = NULL;
+    int error = 0;
+    int sign_pad;
+#endif
   CODE:
 {
     if (!_is_private(p_rsa))
     {
         croak("Public keys cannot sign messages");
     }
-    CHECK_NEW(signature, EVP_PKEY_get_size(p_rsa->rsa), UNSIGNED_CHAR);
 
     CHECK_OPEN_SSL(digest = get_message_digest(text_SV, p_rsa->hashMode));
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    EVP_PKEY_CTX *ctx;
     ctx = EVP_PKEY_CTX_new(p_rsa->rsa, NULL /* no engine */);
-    CHECK_OPEN_SSL(ctx);
-    CHECK_OPEN_SSL(EVP_PKEY_sign_init(ctx));
-    /* FIXME: Issue setting padding in some cases */
-    int sign_pad = p_rsa->padding;
+    THROW(ctx);
+    THROW(EVP_PKEY_sign_init(ctx));
+    sign_pad = p_rsa->padding;
     if (p_rsa->padding != RSA_NO_PADDING) {
         sign_pad = RSA_PKCS1_PSS_PADDING;
     }
-    CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_padding(ctx, sign_pad) > 0);
+    THROW(EVP_PKEY_CTX_set_rsa_padding(ctx, sign_pad) > 0);
 
-    EVP_MD* md = get_md_bynid(p_rsa->hashMode);
-    CHECK_OPEN_SSL(md != NULL);
+    md = get_md_bynid(p_rsa->hashMode);
+    THROW(md != NULL);
 
-    int md_status;
-    CHECK_OPEN_SSL((md_status = EVP_PKEY_CTX_set_signature_md(ctx, md)) > 0);
+    THROW(EVP_PKEY_CTX_set_signature_md(ctx, md) > 0);
     if (p_rsa->padding == RSA_PKCS1_PSS_PADDING) {
-        CHECK_OPEN_SSL((md_status = EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, md)) > 0);
-        CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_pss_saltlen(ctx, RSA_PSS_SALTLEN_DIGEST) > 0);
+        THROW(EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, md) > 0);
+        THROW(EVP_PKEY_CTX_set_rsa_pss_saltlen(ctx, RSA_PSS_SALTLEN_DIGEST) > 0);
     }
-    CHECK_OPEN_SSL(EVP_PKEY_sign(ctx, NULL, &signature_length, digest, get_digest_length(p_rsa->hashMode)) == 1);
+    THROW(EVP_PKEY_sign(ctx, NULL, &signature_length, digest, get_digest_length(p_rsa->hashMode)) == 1);
 
-    //signature = OPENSSL_malloc(signature_length);
-    Newx(signature, signature_length, char);
+    Newx(signature, signature_length, UNSIGNED_CHAR);
+    THROW(signature);
 
-    CHECK_OPEN_SSL(signature);
+    THROW(EVP_PKEY_sign(ctx, signature, &signature_length, digest, get_digest_length(p_rsa->hashMode)) == 1);
 
-    CHECK_OPEN_SSL(EVP_PKEY_sign(ctx, signature, &signature_length, digest, get_digest_length(p_rsa->hashMode)) == 1);
-    CHECK_OPEN_SSL(signature);
     EVP_MD_free(md);
     EVP_PKEY_CTX_free(ctx);
+
+    goto sign_done;
+    err:
+        if (md) EVP_MD_free(md);
+        if (ctx) EVP_PKEY_CTX_free(ctx);
+        CHECK_OPEN_SSL(0);
+    sign_done:
 #else
+    CHECK_NEW(signature, EVP_PKEY_get_size(p_rsa->rsa), UNSIGNED_CHAR);
     CHECK_OPEN_SSL(RSA_sign(p_rsa->hashMode,
                             digest,
                             get_digest_length(p_rsa->hashMode),
