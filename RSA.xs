@@ -1050,35 +1050,34 @@ PPCODE:
 
     CHECK_OPEN_SSL(digest = get_message_digest(text_SV, p_rsa->hashMode));
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    EVP_PKEY_CTX *ctx;
+    {
+    int verify_result;
+    int error = 0;
+    int verify_pad;
+    EVP_PKEY_CTX *ctx = NULL;
+    EVP_MD *md = NULL;
+
     ctx = EVP_PKEY_CTX_new(p_rsa->rsa, NULL /* no engine */);
-    CHECK_OPEN_SSL(ctx);
-    CHECK_OPEN_SSL(EVP_PKEY_verify_init(ctx) == 1);
-    /* FIXME: Issue setting padding in some cases */
-    int verify_pad = p_rsa->padding;
+    THROW(ctx);
+    THROW(EVP_PKEY_verify_init(ctx) == 1);
+    verify_pad = p_rsa->padding;
     if (p_rsa->padding != RSA_NO_PADDING) {
         verify_pad = RSA_PKCS1_PSS_PADDING;
     }
-    CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_padding(ctx, verify_pad) > 0);
-    EVP_MD* md = get_md_bynid(p_rsa->hashMode);
-    CHECK_OPEN_SSL(md != NULL);
+    THROW(EVP_PKEY_CTX_set_rsa_padding(ctx, verify_pad) > 0);
+    md = get_md_bynid(p_rsa->hashMode);
+    THROW(md != NULL);
 
-    int md_status;
-    CHECK_OPEN_SSL((md_status = EVP_PKEY_CTX_set_signature_md(ctx, md)) > 0);
+    THROW(EVP_PKEY_CTX_set_signature_md(ctx, md) > 0);
     if (p_rsa->padding == RSA_PKCS1_PSS_PADDING) {
-        CHECK_OPEN_SSL((md_status = EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, md)) > 0);
-        CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_pss_saltlen(ctx, RSA_PSS_SALTLEN_DIGEST) > 0);
+        THROW(EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, md) > 0);
+        THROW(EVP_PKEY_CTX_set_rsa_pss_saltlen(ctx, RSA_PSS_SALTLEN_DIGEST) > 0);
     }
 
-    switch (EVP_PKEY_verify(ctx, sig, sig_length, digest, get_digest_length(p_rsa->hashMode)))
-#else
-    switch(RSA_verify(p_rsa->hashMode,
-                      digest,
-                      get_digest_length(p_rsa->hashMode),
-                      sig,
-                      sig_length,
-                      p_rsa->rsa))
-#endif
+    verify_result = EVP_PKEY_verify(ctx, sig, sig_length, digest, get_digest_length(p_rsa->hashMode));
+    EVP_MD_free(md);
+    EVP_PKEY_CTX_free(ctx);
+    switch(verify_result)
     {
         case 0:
             ERR_clear_error();
@@ -1091,9 +1090,33 @@ PPCODE:
             CHECK_OPEN_SSL(0);
             break;
     }
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    EVP_MD_free(md);
-    EVP_PKEY_CTX_free(ctx);
+
+    goto verify_done;
+    err:
+        if (md) EVP_MD_free(md);
+        if (ctx) EVP_PKEY_CTX_free(ctx);
+        CHECK_OPEN_SSL(0);
+    verify_done: ;
+    }
+#else
+    switch(RSA_verify(p_rsa->hashMode,
+                      digest,
+                      get_digest_length(p_rsa->hashMode),
+                      sig,
+                      sig_length,
+                      p_rsa->rsa))
+    {
+        case 0:
+            ERR_clear_error();
+            XSRETURN_NO;
+            break;
+        case 1:
+            XSRETURN_YES;
+            break;
+        default:
+            CHECK_OPEN_SSL(0);
+            break;
+    }
 #endif
 }
 
