@@ -328,31 +328,44 @@ SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
     CHECK_NEW(to, size, UNSIGNED_CHAR);
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
 
-    if(p_rsa->padding == RSA_PKCS1_PSS_PADDING)
+    if(p_rsa->padding == RSA_PKCS1_PSS_PADDING) {
+        Safefree(to);
         croak("PKCS#1 v2.1 RSA-PSS cannot be used for encryption operations call \"use_pkcs1_oaep_padding\" instead.");
+    }
 
-    EVP_PKEY_CTX *ctx;
+    EVP_PKEY_CTX *ctx = NULL;
+    OSSL_LIB_CTX *ossllibctx = NULL;
+    int error = 0;
+    int crypt_pad;
 
-    OSSL_LIB_CTX *ossllibctx = OSSL_LIB_CTX_new();
+    ossllibctx = OSSL_LIB_CTX_new();
     if (public) {
         ctx = EVP_PKEY_CTX_new_from_pkey(ossllibctx, (EVP_PKEY* )p_rsa->rsa, NULL);
     } else {
         ctx = EVP_PKEY_CTX_new((EVP_PKEY* )p_rsa->rsa, NULL);
     }
 
-    CHECK_OPEN_SSL(ctx);
+    THROW(ctx);
 
-    CHECK_OPEN_SSL(init_crypt(ctx) == 1);
-    int crypt_pad = p_rsa->padding;
+    THROW(init_crypt(ctx) == 1);
+    crypt_pad = p_rsa->padding;
     if (p_rsa->padding != RSA_NO_PADDING) {
         crypt_pad = RSA_PKCS1_OAEP_PADDING;
     }
-    CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_padding(ctx, crypt_pad) > 0);
-    CHECK_OPEN_SSL(p_crypt(ctx, NULL, &to_length, from, from_length) == 1);
-    CHECK_OPEN_SSL(p_crypt(ctx, to, &to_length, from, from_length) == 1);
+    THROW(EVP_PKEY_CTX_set_rsa_padding(ctx, crypt_pad) > 0);
+    THROW(p_crypt(ctx, NULL, &to_length, from, from_length) == 1);
+    THROW(p_crypt(ctx, to, &to_length, from, from_length) == 1);
 
     EVP_PKEY_CTX_free(ctx);
     OSSL_LIB_CTX_free(ossllibctx);
+
+    goto crypt_done;
+    err:
+        if (ctx) EVP_PKEY_CTX_free(ctx);
+        if (ossllibctx) OSSL_LIB_CTX_free(ossllibctx);
+        Safefree(to);
+        CHECK_OPEN_SSL(0);
+    crypt_done:
 #else
     to_length = p_crypt(
        from_length, from, (unsigned char*) to, p_rsa->rsa, p_rsa->padding);
