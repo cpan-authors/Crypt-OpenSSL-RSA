@@ -842,7 +842,9 @@ check_key(p_rsa)
     }
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_from_pkey(NULL, p_rsa->rsa, NULL);
+    CHECK_OPEN_SSL(pctx);
     RETVAL = EVP_PKEY_private_check(pctx);
+    EVP_PKEY_CTX_free(pctx);
 #else
     RETVAL = RSA_check_key(p_rsa->rsa);
 #endif
