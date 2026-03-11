@@ -1,4 +1,4 @@
-name: linux
+name: testsuite
 
 on:
   push:
@@ -172,4 +172,49 @@ jobs:
       - name: Deps for testing
         run: cpanm --notest Crypt::OpenSSL::Random Crypt::OpenSSL::Guess
       - run: perl Makefile.PL
+      - run: make && ( make test || prove -wbvm t/*.t )
+
+#
+# macOS — covers LibreSSL (system default) and Homebrew OpenSSL 3.x
+#
+
+  macos:
+    env:
+      PERL_USE_UNSAFE_INC: 0
+      AUTHOR_TESTING: 0
+      AUTOMATED_TESTING: 1
+      RELEASE_TESTING: 0
+
+    needs: [ubuntu]
+    runs-on: macos-latest
+    name: "macOS - ${{ matrix.ssl }}"
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ssl: system LibreSSL
+            openssl_prefix: ""
+          - ssl: Homebrew OpenSSL
+            openssl_prefix: HOMEBREW
+
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Homebrew OpenSSL
+        if: ${{ matrix.openssl_prefix == 'HOMEBREW' }}
+        run: brew install openssl@3
+      - name: Set OPENSSL_PREFIX for Homebrew OpenSSL
+        if: ${{ matrix.openssl_prefix == 'HOMEBREW' }}
+        run: echo "OPENSSL_PREFIX=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
+      - run: openssl version
+      - run: perl -V
+      - name: Install cpanm
+        run: |
+          curl -L https://cpanmin.us/ -o cpanm
+          chmod +x cpanm
+          sudo mv cpanm /usr/local/bin/
+      - name: Install dependencies
+        run: cpanm --notest Crypt::OpenSSL::Guess Crypt::OpenSSL::Random Crypt::OpenSSL::Bignum
+      - name: Makefile.PL
+        run: perl Makefile.PL
       - run: make && ( make test || prove -wbvm t/*.t )
