@@ -530,7 +530,8 @@ generate_key(proto, bitsSV, exponent = 65537)
     CHECK_OPEN_SSL(EVP_PKEY_generate(ctx, &rsa) == 1);
     CHECK_OPEN_SSL(rsa != NULL);
 
-    BN_free(e);
+    if (e != NULL)
+        BN_free(e);
     EVP_PKEY_CTX_free(ctx);
 #endif
     CHECK_OPEN_SSL(rsa);
