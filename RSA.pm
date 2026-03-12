@@ -114,9 +114,8 @@ C<-----BEGIN...-----> and C<-----END...-----> lines.
 The padding is set to PKCS1_OAEP, but can be changed with the
 C<use_xxx_padding> methods.
 
-Note, PKCS1_OAEP can only be used for encryption.  You must specifically
-call use_pkcs1_pss_padding (or use_pkcs1_pss_padding) prior to signing
-operations.
+Note, PKCS1_OAEP can only be used for encryption.  You must call
+C<use_pkcs1_pss_padding> prior to signing operations.
 
 =item new_private_key
 
@@ -252,7 +251,7 @@ While B<use_no_padding> can be used for encryption or signature operations
 B<use_pkcs1_pss_padding> is used for signature operations and
 B<use_pkcs1_oaep_padding> is used for encryption operations.
 
-Version 0.38 sets the appropriate padding for each operation unless
+On OpenSSL 3.x, the appropriate padding is set for each operation unless
 B<use_no_padding> is called before either operation.
 
 B<Note:> while C<pkcs1-pss> is the effective replacement for <pkcs1> your
@@ -374,7 +373,7 @@ C<Crypt::OpenSSL::Bignum> module must be installed for this to work.
 
 =item is_private
 
-Return true if this is a private key, and false if it is private only.
+Return true if this is a private key, and false if it is public only.
 
 =back
 
