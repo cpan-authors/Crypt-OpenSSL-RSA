@@ -22,12 +22,12 @@ sub _Test_Encrypt_And_Decrypt {
     );
     ok( $ciphertext   = $p_rsa->encrypt($plaintext) );
     ok( $decoded_text = $p_rsa->decrypt($ciphertext) );
-    ok( $decoded_text eq $plaintext );
+    is( $decoded_text, $plaintext, "decrypted text matches plaintext" );
 
     if ($p_check_private_encrypt) {
         ok( $ciphertext   = $p_rsa->private_encrypt($plaintext) );
         ok( $decoded_text = $p_rsa->public_decrypt($ciphertext) );
-        ok( $decoded_text eq $plaintext );
+        is( $decoded_text, $plaintext, "public_decrypt(private_encrypt(plaintext)) round-trips" );
     }
 }
 
@@ -68,10 +68,10 @@ sub _check_for_croak {
 Crypt::OpenSSL::Random::random_seed("OpenSSL needs at least 32 bytes.");
 Crypt::OpenSSL::RSA->import_random_seed();
 
-ok( Crypt::OpenSSL::RSA->generate_key(512)->size() * 8 == 512 );
+is( Crypt::OpenSSL::RSA->generate_key(512)->size() * 8, 512, "512-bit key has correct size" );
 
 my $rsa = Crypt::OpenSSL::RSA->generate_key(2048);
-ok( $rsa->size() * 8 == 2048 );
+is( $rsa->size() * 8, 2048, "2048-bit key has correct size" );
 ok( $rsa->check_key() );
 
 $rsa->use_no_padding();
@@ -91,11 +91,11 @@ ok( $private_key_string and $public_key_string );
 
 my $plaintext = "The quick brown fox jumped over the lazy dog";
 my $rsa_priv  = Crypt::OpenSSL::RSA->new_private_key($private_key_string);
-ok( $plaintext eq $rsa_priv->decrypt( $rsa_priv->encrypt($plaintext) ) );
+is( $rsa_priv->decrypt( $rsa_priv->encrypt($plaintext) ), $plaintext, "private key round-trips encrypt/decrypt" );
 
 my $rsa_pub = Crypt::OpenSSL::RSA->new_public_key($public_key_string);
 $rsa->use_pkcs1_oaep_padding();
-ok( $plaintext eq $rsa->decrypt( $rsa_pub->encrypt($plaintext) ) );
+is( $rsa->decrypt( $rsa_pub->encrypt($plaintext) ), $plaintext, "pub encrypt + priv decrypt round-trips" );
 
 ok( $rsa_priv->is_private() );
 ok( !$rsa_pub->is_private() );
