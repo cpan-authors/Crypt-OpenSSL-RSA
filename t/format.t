@@ -1,5 +1,5 @@
 use strict;
-use Test;
+use Test::More;
 
 use Crypt::OpenSSL::RSA;
 
@@ -65,26 +65,26 @@ EOF
 
 my ( $private_key, $public_key, $private_key2 );
 
-ok( $private_key = Crypt::OpenSSL::RSA->new_private_key($PRIVATE_KEY_STRING) );
-ok( $PRIVATE_KEY_STRING eq $private_key->get_private_key_string() );
-ok( $PUBLIC_KEY_PKCS1_STRING eq $private_key->get_public_key_string() );
-ok( $PUBLIC_KEY_X509_STRING eq $private_key->get_public_key_x509_string() );
+ok( $private_key = Crypt::OpenSSL::RSA->new_private_key($PRIVATE_KEY_STRING), "load private key from string" );
+is( $private_key->get_private_key_string(), $PRIVATE_KEY_STRING, "private key round-trips" );
+is( $private_key->get_public_key_string(), $PUBLIC_KEY_PKCS1_STRING, "PKCS1 public key matches expected" );
+is( $private_key->get_public_key_x509_string(), $PUBLIC_KEY_X509_STRING, "X509 public key matches expected" );
 
-ok( $public_key = Crypt::OpenSSL::RSA->new_public_key($PUBLIC_KEY_PKCS1_STRING) );
-ok( $PUBLIC_KEY_PKCS1_STRING eq $public_key->get_public_key_string() );
-ok( $PUBLIC_KEY_X509_STRING eq $public_key->get_public_key_x509_string() );
+ok( $public_key = Crypt::OpenSSL::RSA->new_public_key($PUBLIC_KEY_PKCS1_STRING), "load PKCS1 public key" );
+is( $public_key->get_public_key_string(), $PUBLIC_KEY_PKCS1_STRING, "PKCS1 public key round-trips" );
+is( $public_key->get_public_key_x509_string(), $PUBLIC_KEY_X509_STRING, "PKCS1 key exports to X509 correctly" );
 
-ok( $public_key = Crypt::OpenSSL::RSA->new_public_key($PUBLIC_KEY_X509_STRING) );
-ok( $PUBLIC_KEY_PKCS1_STRING eq $public_key->get_public_key_string() );
-ok( $PUBLIC_KEY_X509_STRING eq $public_key->get_public_key_x509_string() );
+ok( $public_key = Crypt::OpenSSL::RSA->new_public_key($PUBLIC_KEY_X509_STRING), "load X509 public key" );
+is( $public_key->get_public_key_string(), $PUBLIC_KEY_PKCS1_STRING, "X509 key exports to PKCS1 correctly" );
+is( $public_key->get_public_key_x509_string(), $PUBLIC_KEY_X509_STRING, "X509 public key round-trips" );
 
 my $passphase = '123456';
-ok( $private_key = Crypt::OpenSSL::RSA->new_private_key( $ENCRYPT_PRIVATE_KEY_STRING, $passphase ) );
-ok( $DECRYPT_PRIVATE_KEY_STRING eq $private_key->get_private_key_string() );
-ok( $private_key  = Crypt::OpenSSL::RSA->new_private_key($DECRYPT_PRIVATE_KEY_STRING) );
-ok( $private_key2 = Crypt::OpenSSL::RSA->new_private_key( $private_key->get_private_key_string($passphase), $passphase ) );
-ok( $DECRYPT_PRIVATE_KEY_STRING eq $private_key2->get_private_key_string() );
-ok( $private_key2 = Crypt::OpenSSL::RSA->new_private_key( $private_key->get_private_key_string( $passphase, 'des3' ), $passphase ) );
-ok( $DECRYPT_PRIVATE_KEY_STRING eq $private_key2->get_private_key_string() );
-ok( $private_key2 = Crypt::OpenSSL::RSA->new_private_key( $private_key->get_private_key_string( $passphase, 'aes-128-cbc' ), $passphase ) );
-ok( $DECRYPT_PRIVATE_KEY_STRING eq $private_key2->get_private_key_string() );
+ok( $private_key = Crypt::OpenSSL::RSA->new_private_key( $ENCRYPT_PRIVATE_KEY_STRING, $passphase ), "load encrypted private key" );
+is( $private_key->get_private_key_string(), $DECRYPT_PRIVATE_KEY_STRING, "encrypted key decrypts to expected private key" );
+ok( $private_key  = Crypt::OpenSSL::RSA->new_private_key($DECRYPT_PRIVATE_KEY_STRING), "load decrypted private key" );
+ok( $private_key2 = Crypt::OpenSSL::RSA->new_private_key( $private_key->get_private_key_string($passphase), $passphase ), "re-encrypt and reload with passphrase" );
+is( $private_key2->get_private_key_string(), $DECRYPT_PRIVATE_KEY_STRING, "re-encrypted key round-trips" );
+ok( $private_key2 = Crypt::OpenSSL::RSA->new_private_key( $private_key->get_private_key_string( $passphase, 'des3' ), $passphase ), "encrypt with des3 and reload" );
+is( $private_key2->get_private_key_string(), $DECRYPT_PRIVATE_KEY_STRING, "des3-encrypted key round-trips" );
+ok( $private_key2 = Crypt::OpenSSL::RSA->new_private_key( $private_key->get_private_key_string( $passphase, 'aes-128-cbc' ), $passphase ), "encrypt with aes-128-cbc and reload" );
+is( $private_key2->get_private_key_string(), $DECRYPT_PRIVATE_KEY_STRING, "aes-128-cbc-encrypted key round-trips" );
