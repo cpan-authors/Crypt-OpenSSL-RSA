@@ -667,7 +667,11 @@ _new_key_from_parameters(proto, n, e, d, p, q)
         dmp1 = dmq1 = iqmp = NULL;
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
         OSSL_PARAM_BLD_free(params_build);
+        params_build = NULL;
         OSSL_PARAM_free(params);
+        params = NULL;
+        EVP_PKEY_CTX_free(pctx);
+        pctx = NULL;
 #else
         THROW(RSA_check_key(rsa) == 1);
 #endif
@@ -689,6 +693,12 @@ _new_key_from_parameters(proto, n, e, d, p, q)
         params_build = NULL;
         params = NULL;
         THROW( status > 0 && rsa != NULL );
+        OSSL_PARAM_BLD_free(params_build);
+        params_build = NULL;
+        OSSL_PARAM_free(params);
+        params = NULL;
+        EVP_PKEY_CTX_free(pctx);
+        pctx = NULL;
 #else
         CHECK_OPEN_SSL(RSA_set0_key(rsa, n, e, d));
 #endif
