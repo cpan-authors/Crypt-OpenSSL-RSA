@@ -333,6 +333,9 @@ SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
     if(p_rsa->padding == RSA_PKCS1_PSS_PADDING)
         croak("PKCS#1 v2.1 RSA-PSS cannot be used for encryption operations call \"use_pkcs1_oaep_padding\" instead.");
 
+    if(p_rsa->padding == RSA_PKCS1_PADDING)
+        croak("PKCS#1 v1.5 padding for encryption is disabled (CVE-2024-2467, Marvin attack). Use \"use_pkcs1_oaep_padding\" for encryption or \"use_pkcs1_padding\" for signing.");
+
     EVP_PKEY_CTX *ctx;
 
     OSSL_LIB_CTX *ossllibctx = OSSL_LIB_CTX_new();
@@ -944,7 +947,7 @@ void
 use_pkcs1_padding(p_rsa)
     rsaData* p_rsa;
   CODE:
-    croak("PKCS#1 1.5 is disabled as it is known to be vulnerable to marvin attacks.");
+    p_rsa->padding = RSA_PKCS1_PADDING;
 
 void
 use_pkcs1_oaep_padding(p_rsa)
@@ -992,10 +995,16 @@ sign(p_rsa, text_SV)
     ctx = EVP_PKEY_CTX_new(p_rsa->rsa, NULL /* no engine */);
     CHECK_OPEN_SSL(ctx);
     CHECK_OPEN_SSL(EVP_PKEY_sign_init(ctx));
-    /* FIXME: Issue setting padding in some cases */
-    int sign_pad = p_rsa->padding;
-    if (p_rsa->padding != RSA_NO_PADDING) {
+    int sign_pad;
+    if (p_rsa->padding == RSA_PKCS1_PSS_PADDING) {
         sign_pad = RSA_PKCS1_PSS_PADDING;
+    } else if (p_rsa->padding == RSA_NO_PADDING) {
+        sign_pad = RSA_NO_PADDING;
+    } else {
+        /* Default: RSASSA-PKCS1-v1.5, matching pre-3.x RSA_sign() behavior.
+         * PKCS#1 v1.5 signatures are not vulnerable to the Marvin attack
+         * (CVE-2024-2467), which only affects decryption padding oracles. */
+        sign_pad = RSA_PKCS1_PADDING;
     }
     CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_padding(ctx, sign_pad) > 0);
 
@@ -1058,10 +1067,14 @@ PPCODE:
     ctx = EVP_PKEY_CTX_new(p_rsa->rsa, NULL /* no engine */);
     CHECK_OPEN_SSL(ctx);
     CHECK_OPEN_SSL(EVP_PKEY_verify_init(ctx) == 1);
-    /* FIXME: Issue setting padding in some cases */
-    int verify_pad = p_rsa->padding;
-    if (p_rsa->padding != RSA_NO_PADDING) {
+    int verify_pad;
+    if (p_rsa->padding == RSA_PKCS1_PSS_PADDING) {
         verify_pad = RSA_PKCS1_PSS_PADDING;
+    } else if (p_rsa->padding == RSA_NO_PADDING) {
+        verify_pad = RSA_NO_PADDING;
+    } else {
+        /* Default: RSASSA-PKCS1-v1.5, matching pre-3.x RSA_verify() */
+        verify_pad = RSA_PKCS1_PADDING;
     }
     CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_padding(ctx, verify_pad) > 0);
     EVP_MD* md = get_md_bynid(p_rsa->hashMode);
