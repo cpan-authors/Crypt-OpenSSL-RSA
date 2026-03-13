@@ -54,7 +54,7 @@ sub _Test_Sign_And_Verify {
 sub _check_for_croak {
     my ( $code, $expected ) = @_;
     eval { &$code() };
-    ok( $@, "/$expected/" );
+    like( $@, qr/$expected/, "croak matches: $expected" );
 }
 
 # On platforms without a /dev/random, we need to manually seed.  In
