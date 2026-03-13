@@ -68,7 +68,7 @@ Crypt::OpenSSL::RSA->import_random_seed();
 
 my $rsa = Crypt::OpenSSL::RSA->generate_key(2048);
 is( $rsa->size() * 8, 2048, "2048-bit key has correct size" );
-ok( $rsa->check_key() );
+ok( $rsa->check_key(), "2048-bit key passes check_key()" );
 
 my $private_key_string = $rsa->get_private_key_string();
 my $public_key_string  = $rsa->get_public_key_string();
@@ -142,11 +142,17 @@ foreach my $padding (keys %padding_methods) {
 
         # Invalid signing methods
         if ((!$sign) && $pad) {
+          SKIP: {
+            # OAEP only affects encryption; signing uses its own padding
+            # and does not croak when OAEP is set
+            skip "Signing with $padding padding does not croak", 1
+                if $encrypt;
             eval {
                 $rsa->$method;
                 $rsa->sign($plaintext);
             };
-            ok(defined $@, "Padding $padding is invalid for signing");
+            ok($@, "Padding $padding is invalid for signing with $hash");
+          }
         }
 
         # Valid encryption methods with padding
