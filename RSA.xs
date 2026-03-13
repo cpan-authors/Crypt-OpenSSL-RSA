@@ -511,6 +511,7 @@ generate_key(proto, bitsSV, exponent = 65537)
     BN_set_word(e, exponent);
 #if OPENSSL_VERSION_NUMBER < 0x00908000L
     rsa = RSA_generate_key(SvIV(bitsSV), exponent, NULL, NULL);
+    BN_free(e);
     CHECK_OPEN_SSL(rsa != NULL);
 #endif
 #if OPENSSL_VERSION_NUMBER >= 0x00908000L && OPENSSL_VERSION_NUMBER < 0x30000000L

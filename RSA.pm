@@ -377,10 +377,6 @@ Return true if this is a private key, and false if it is public only.
 
 =back
 
-=head1 BUGS
-
-There is a small memory leak when generating new keys of more than 512 bits.
-
 =head1 AUTHOR
 
 Ian Robertson, C<iroberts@cpan.org>.  For support, please email
