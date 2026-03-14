@@ -1061,6 +1061,7 @@ sign(p_rsa, text_SV)
     }
     THROW(EVP_PKEY_sign(ctx, NULL, &signature_length, digest, get_digest_length(p_rsa->hashMode)) == 1);
 
+    Safefree(signature);
     Newx(signature, signature_length, UNSIGNED_CHAR);
     THROW(signature);
 
