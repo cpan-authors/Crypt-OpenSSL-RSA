@@ -1095,6 +1095,14 @@ verify(p_rsa, text_SV, sig_SV)
     rsaData* p_rsa;
     SV* text_SV;
     SV* sig_SV;
+PREINIT:
+    int verify_result;
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    int error = 0;
+    int verify_pad;
+    EVP_PKEY_CTX *ctx = NULL;
+    EVP_MD *md = NULL;
+#endif
 PPCODE:
 {
     unsigned char* sig;
@@ -1108,14 +1116,7 @@ PPCODE:
     }
 
     CHECK_OPEN_SSL(digest = get_message_digest(text_SV, p_rsa->hashMode));
-    {
-    int verify_result;
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    int error = 0;
-    int verify_pad;
-    EVP_PKEY_CTX *ctx = NULL;
-    EVP_MD *md = NULL;
-
     ctx = EVP_PKEY_CTX_new(p_rsa->rsa, NULL /* no engine */);
     THROW(ctx);
     THROW(EVP_PKEY_verify_init(ctx) == 1);
@@ -1163,7 +1164,6 @@ PPCODE:
         default:
             CHECK_OPEN_SSL(0);
             break;
-    }
     }
 }
 
