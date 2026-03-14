@@ -1074,7 +1074,10 @@ PPCODE:
         CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_pss_saltlen(ctx, RSA_PSS_SALTLEN_DIGEST) > 0);
     }
 
-    switch (EVP_PKEY_verify(ctx, sig, sig_length, digest, get_digest_length(p_rsa->hashMode)))
+    int verify_result = EVP_PKEY_verify(ctx, sig, sig_length, digest, get_digest_length(p_rsa->hashMode));
+    EVP_MD_free(md);
+    EVP_PKEY_CTX_free(ctx);
+    switch (verify_result)
 #else
     switch(RSA_verify(p_rsa->hashMode,
                       digest,
@@ -1095,10 +1098,6 @@ PPCODE:
             CHECK_OPEN_SSL(0);
             break;
     }
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    EVP_MD_free(md);
-    EVP_PKEY_CTX_free(ctx);
-#endif
 }
 
 int
