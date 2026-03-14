@@ -647,7 +647,9 @@ _new_key_from_parameters(proto, n, e, d, p, q)
         int status = EVP_PKEY_fromdata(pctx, &rsa, EVP_PKEY_KEYPAIR, params);
         THROW( status > 0 && rsa != NULL );
         EVP_PKEY_CTX* test_ctx = EVP_PKEY_CTX_new_from_pkey(NULL, rsa, NULL);
-        THROW(EVP_PKEY_check(test_ctx) == 1);
+        int check_result = EVP_PKEY_check(test_ctx);
+        EVP_PKEY_CTX_free(test_ctx);
+        THROW(check_result == 1);
 #else
         THROW(RSA_set0_crt_params(rsa, dmp1, dmq1, iqmp));
 #endif
@@ -656,6 +658,10 @@ _new_key_from_parameters(proto, n, e, d, p, q)
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
         OSSL_PARAM_BLD_free(params_build);
         OSSL_PARAM_free(params);
+        EVP_PKEY_CTX_free(pctx);
+        params_build = NULL;
+        params = NULL;
+        pctx = NULL;
 #else
         THROW(RSA_check_key(rsa) == 1);
 #endif
@@ -673,6 +679,12 @@ _new_key_from_parameters(proto, n, e, d, p, q)
 
         int status = EVP_PKEY_fromdata(pctx, &rsa, EVP_PKEY_KEYPAIR, params);
         THROW( status > 0 && rsa != NULL );
+        OSSL_PARAM_BLD_free(params_build);
+        OSSL_PARAM_free(params);
+        EVP_PKEY_CTX_free(pctx);
+        params_build = NULL;
+        params = NULL;
+        pctx = NULL;
 #else
         CHECK_OPEN_SSL(RSA_set0_key(rsa, n, e, d));
 #endif
@@ -693,6 +705,11 @@ _new_key_from_parameters(proto, n, e, d, p, q)
         if (dmq1) BN_clear_free(dmq1);
         if (iqmp) BN_clear_free(iqmp);
         if (ctx) BN_CTX_free(ctx);
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+        EVP_PKEY_CTX_free(pctx);
+        OSSL_PARAM_BLD_free(params_build);
+        OSSL_PARAM_free(params);
+#endif
         if (error)
         {
             EVP_PKEY_free(rsa);
