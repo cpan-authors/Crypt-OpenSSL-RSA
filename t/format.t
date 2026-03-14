@@ -3,7 +3,7 @@ use Test::More;
 
 use Crypt::OpenSSL::RSA;
 
-BEGIN { plan tests => 19 }
+BEGIN { plan tests => 34 }
 
 my $PRIVATE_KEY_STRING = <<EOF;
 -----BEGIN RSA PRIVATE KEY-----
@@ -88,3 +88,57 @@ ok( $private_key2 = Crypt::OpenSSL::RSA->new_private_key( $private_key->get_priv
 is( $private_key2->get_private_key_string(), $DECRYPT_PRIVATE_KEY_STRING, "des3-encrypted key round-trips" );
 ok( $private_key2 = Crypt::OpenSSL::RSA->new_private_key( $private_key->get_private_key_string( $passphase, 'aes-128-cbc' ), $passphase ), "encrypt with aes-128-cbc and reload" );
 is( $private_key2->get_private_key_string(), $DECRYPT_PRIVATE_KEY_STRING, "aes-128-cbc-encrypted key round-trips" );
+
+# --- Additional cipher algorithms ---
+
+ok( $private_key2 = Crypt::OpenSSL::RSA->new_private_key( $private_key->get_private_key_string( $passphase, 'aes-256-cbc' ), $passphase ), "encrypt with aes-256-cbc and reload" );
+is( $private_key2->get_private_key_string(), $DECRYPT_PRIVATE_KEY_STRING, "aes-256-cbc-encrypted key round-trips" );
+
+ok( $private_key2 = Crypt::OpenSSL::RSA->new_private_key( $private_key->get_private_key_string( $passphase, 'aes-192-cbc' ), $passphase ), "encrypt with aes-192-cbc and reload" );
+is( $private_key2->get_private_key_string(), $DECRYPT_PRIVATE_KEY_STRING, "aes-192-cbc-encrypted key round-trips" );
+
+# --- Passphrase with special characters ---
+
+my $special_pass = q{p@ss!w0rd#$%^&*()};
+ok( $private_key2 = Crypt::OpenSSL::RSA->new_private_key( $private_key->get_private_key_string($special_pass), $special_pass ), "passphrase with special characters round-trips" );
+is( $private_key2->get_private_key_string(), $DECRYPT_PRIVATE_KEY_STRING, "special-char passphrase key decrypts correctly" );
+
+# --- Error: cipher specified without passphrase ---
+
+eval { $private_key->get_private_key_string(undef, 'des3') };
+like($@, qr/Passphrase is required for cipher/, "get_private_key_string croaks when cipher given without passphrase");
+
+# --- Error: unsupported cipher name ---
+
+eval { $private_key->get_private_key_string($passphase, 'bogus-cipher-xyz') };
+like($@, qr/Unsupported cipher/, "get_private_key_string croaks on unsupported cipher");
+
+# --- Error: export private key from public-only key ---
+
+my $pub_only = Crypt::OpenSSL::RSA->new_public_key($PUBLIC_KEY_PKCS1_STRING);
+my $pub_priv_pem = eval { $pub_only->get_private_key_string() };
+# Public keys should either croak or return empty/invalid PEM
+ok(!$pub_priv_pem || $@, "get_private_key_string on public-only key does not succeed silently");
+
+# --- Error: wrong passphrase on re-import ---
+
+my $encrypted_pem = $private_key->get_private_key_string($passphase, 'aes-128-cbc');
+eval { Crypt::OpenSSL::RSA->new_private_key($encrypted_pem, 'wrong_passphrase') };
+ok($@, "new_private_key croaks on wrong passphrase");
+
+eval { Crypt::OpenSSL::RSA->new_private_key($encrypted_pem) };
+ok($@, "new_private_key croaks on encrypted key without passphrase");
+
+# --- Public key format detection ---
+
+eval { Crypt::OpenSSL::RSA->new_public_key("-----BEGIN CERTIFICATE-----\nfoo\n-----END CERTIFICATE-----\n") };
+like($@, qr/unrecognized key format/, "new_public_key croaks on certificate PEM header");
+
+eval { Crypt::OpenSSL::RSA->new_public_key("not a PEM key at all") };
+like($@, qr/unrecognized key format/, "new_public_key croaks on non-PEM input");
+
+# --- X509 public key from private key matches PKCS1 ---
+
+my $priv_for_x509 = Crypt::OpenSSL::RSA->new_private_key($PRIVATE_KEY_STRING);
+ok( $public_key = Crypt::OpenSSL::RSA->new_public_key($priv_for_x509->get_public_key_x509_string()), "load X509 public key from private key" );
+is( $public_key->get_public_key_string(), $PUBLIC_KEY_PKCS1_STRING, "X509 from private key matches PKCS1" );
