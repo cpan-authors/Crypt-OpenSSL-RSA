@@ -76,7 +76,8 @@ void croakSsl(char* p_file, int p_line)
     /* Just return the top error on the stack */
     errorReason = ERR_reason_error_string(ERR_get_error());
     ERR_clear_error();
-    croak("%s:%d: OpenSSL error: %s", p_file, p_line, errorReason);
+    croak("%s:%d: OpenSSL error: %s", p_file, p_line,
+          errorReason ? errorReason : "(unknown error)");
 }
 
 #define CHECK_OPEN_SSL(p_result) if (!(p_result)) croakSsl(__FILE__, __LINE__);
