@@ -482,9 +482,13 @@ get_public_key_string(p_rsa)
 
     ctx = OSSL_ENCODER_CTX_new_for_pkey(p_rsa->rsa, OSSL_KEYMGMT_SELECT_PUBLIC_KEY,
             "PEM", "PKCS1", NULL);
-    CHECK_OPEN_SSL(ctx != NULL && OSSL_ENCODER_CTX_get_num_encoders(ctx));
-
-    CHECK_OPEN_SSL(OSSL_ENCODER_to_bio(ctx, stringBIO) == 1);
+    if (!ctx || !OSSL_ENCODER_CTX_get_num_encoders(ctx)
+            || OSSL_ENCODER_to_bio(ctx, stringBIO) != 1)
+    {
+        OSSL_ENCODER_CTX_free(ctx);
+        BIO_free(stringBIO);
+        croakSsl(__FILE__, __LINE__);
+    }
 
     OSSL_ENCODER_CTX_free(ctx);
 #else
@@ -524,27 +528,36 @@ generate_key(proto, bitsSV, exponent = 65537)
     BN_set_word(e, exponent);
 #if OPENSSL_VERSION_NUMBER < 0x00908000L
     rsa = RSA_generate_key(SvIV(bitsSV), exponent, NULL, NULL);
+    BN_free(e);
     CHECK_OPEN_SSL(rsa != NULL);
 #endif
 #if OPENSSL_VERSION_NUMBER >= 0x00908000L && OPENSSL_VERSION_NUMBER < 0x30000000L
     rsa = RSA_new();
     if (!RSA_generate_key_ex(rsa, SvIV(bitsSV), e, NULL))
+    {
+       BN_free(e);
+       RSA_free(rsa);
        croak("Unable to generate a key");
+    }
     BN_free(e);
     CHECK_OPEN_SSL(rsa != NULL);
 #endif
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     ctx = EVP_PKEY_CTX_new_from_name(NULL, "RSA", NULL);
 
-    CHECK_OPEN_SSL(ctx);
-    CHECK_OPEN_SSL(EVP_PKEY_keygen_init(ctx) == 1);
-    CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, SvIV(bitsSV)) > 0);
-    CHECK_OPEN_SSL(EVP_PKEY_CTX_set1_rsa_keygen_pubexp(ctx, e) >0);
-    CHECK_OPEN_SSL(EVP_PKEY_generate(ctx, &rsa) == 1);
-    CHECK_OPEN_SSL(rsa != NULL);
-
-    if (e != NULL)
+    if (!ctx
+        || EVP_PKEY_keygen_init(ctx) != 1
+        || EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, SvIV(bitsSV)) <= 0
+        || EVP_PKEY_CTX_set1_rsa_keygen_pubexp(ctx, e) <= 0
+        || EVP_PKEY_generate(ctx, &rsa) != 1
+        || rsa == NULL)
+    {
         BN_free(e);
+        EVP_PKEY_CTX_free(ctx);
+        croakSsl(__FILE__, __LINE__);
+    }
+
+    BN_free(e);
     EVP_PKEY_CTX_free(ctx);
 #endif
     CHECK_OPEN_SSL(rsa);
