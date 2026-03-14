@@ -311,7 +311,7 @@ EVP_PKEY*  _load_rsa_key(SV* p_keyStringSv,
 
 SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
               int (*p_crypt)(EVP_PKEY_CTX*, unsigned char*, size_t*, const unsigned char*, size_t),
-              int (*init_crypt)(EVP_PKEY_CTX*), int public)
+              int (*init_crypt)(EVP_PKEY_CTX*), int public, int is_encrypt)
 #else
 
 SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
@@ -330,10 +330,10 @@ SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
     CHECK_NEW(to, size, UNSIGNED_CHAR);
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
 
-    if(p_rsa->padding == RSA_PKCS1_PSS_PADDING)
+    if(is_encrypt && p_rsa->padding == RSA_PKCS1_PSS_PADDING)
         croak("PKCS#1 v2.1 RSA-PSS cannot be used for encryption operations call \"use_pkcs1_oaep_padding\" instead.");
 
-    if(p_rsa->padding == RSA_PKCS1_PADDING)
+    if(is_encrypt && p_rsa->padding == RSA_PKCS1_PADDING)
         croak("PKCS#1 v1.5 padding for encryption is disabled (CVE-2024-2467, Marvin attack). Use \"use_pkcs1_oaep_padding\" for encryption or \"use_pkcs1_padding\" for signing.");
 
     EVP_PKEY_CTX *ctx;
@@ -349,8 +349,18 @@ SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
 
     CHECK_OPEN_SSL(init_crypt(ctx) == 1);
     int crypt_pad = p_rsa->padding;
-    if (p_rsa->padding != RSA_NO_PADDING) {
-        crypt_pad = RSA_PKCS1_OAEP_PADDING;
+    if (is_encrypt) {
+        /* Encryption: force OAEP for all non-NO_PADDING modes */
+        if (p_rsa->padding != RSA_NO_PADDING) {
+            crypt_pad = RSA_PKCS1_OAEP_PADDING;
+        }
+    } else {
+        /* private_encrypt/public_decrypt: use the actual padding.
+         * PKCS#1 v1.5 is valid here (RSASSA-PKCS1-v1.5 type 1 padding).
+         * OAEP is not valid for signing — fall back to PKCS#1 v1.5. */
+        if (p_rsa->padding == RSA_PKCS1_OAEP_PADDING) {
+            crypt_pad = RSA_PKCS1_PADDING;
+        }
     }
     CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_padding(ctx, crypt_pad) > 0);
     CHECK_OPEN_SSL(p_crypt(ctx, NULL, &to_length, from, from_length) == 1);
@@ -775,7 +785,7 @@ encrypt(p_rsa, p_plaintext)
     SV* p_plaintext;
   CODE:
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    RETVAL = rsa_crypt(p_rsa, p_plaintext, EVP_PKEY_encrypt, EVP_PKEY_encrypt_init, 1 /* public */);
+    RETVAL = rsa_crypt(p_rsa, p_plaintext, EVP_PKEY_encrypt, EVP_PKEY_encrypt_init, 1 /* public */, 1 /* is_encrypt */);
 #else
     RETVAL = rsa_crypt(p_rsa, p_plaintext, RSA_public_encrypt);
 #endif
@@ -792,7 +802,7 @@ decrypt(p_rsa, p_ciphertext)
         croak("Public keys cannot decrypt");
     }
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    RETVAL = rsa_crypt(p_rsa, p_ciphertext, EVP_PKEY_decrypt, EVP_PKEY_decrypt_init, 0 /* private */);
+    RETVAL = rsa_crypt(p_rsa, p_ciphertext, EVP_PKEY_decrypt, EVP_PKEY_decrypt_init, 0 /* private */, 1 /* is_encrypt */);
 #else
     RETVAL = rsa_crypt(p_rsa, p_ciphertext, RSA_private_decrypt);
 #endif
@@ -809,7 +819,7 @@ private_encrypt(p_rsa, p_plaintext)
         croak("Public keys cannot private_encrypt");
     }
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    RETVAL = rsa_crypt(p_rsa, p_plaintext, EVP_PKEY_sign, EVP_PKEY_sign_init,  0 /* private */);
+    RETVAL = rsa_crypt(p_rsa, p_plaintext, EVP_PKEY_sign, EVP_PKEY_sign_init,  0 /* private */, 0 /* is_sign */);
 #else
     RETVAL = rsa_crypt(p_rsa, p_plaintext, RSA_private_encrypt);
 #endif
@@ -822,7 +832,7 @@ public_decrypt(p_rsa, p_ciphertext)
     SV* p_ciphertext;
   CODE:
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    RETVAL = rsa_crypt(p_rsa, p_ciphertext, EVP_PKEY_verify_recover, EVP_PKEY_verify_recover_init, 1 /*public */);
+    RETVAL = rsa_crypt(p_rsa, p_ciphertext, EVP_PKEY_verify_recover, EVP_PKEY_verify_recover_init, 1 /*public */, 0 /* is_sign */);
 #else
     RETVAL = rsa_crypt(p_rsa, p_ciphertext, RSA_public_decrypt);
 #endif

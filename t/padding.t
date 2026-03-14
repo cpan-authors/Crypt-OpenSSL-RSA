@@ -8,7 +8,7 @@ use Crypt::OpenSSL::Guess qw(openssl_version);
 my ($major, $minor, $patch) = openssl_version;
 
 BEGIN {
-    plan tests => 124 + ( UNIVERSAL::can( "Crypt::OpenSSL::RSA", "use_sha512_hash" ) ? 4 * 5 : 0 );
+    plan tests => 130 + ( UNIVERSAL::can( "Crypt::OpenSSL::RSA", "use_sha512_hash" ) ? 4 * 5 : 0 );
 }
 
 sub _Test_Encrypt_And_Decrypt {
@@ -169,6 +169,31 @@ SKIP: {
 
     # Restore default padding
     $rsa->use_pkcs1_oaep_padding;
+}
+
+# PKCS#1 v1.5 private_encrypt/public_decrypt (raw RSA signing, not affected by Marvin)
+{
+    my $rsa_sign = Crypt::OpenSSL::RSA->generate_key(2048);
+    my $rsa_verify = Crypt::OpenSSL::RSA->new_public_key($rsa_sign->get_public_key_string());
+
+    # With explicit PKCS#1 v1.5 padding
+    $rsa_sign->use_pkcs1_padding;
+    $rsa_verify->use_pkcs1_padding;
+    my $msg = "PKCS1 v1.5 private_encrypt test";
+    my $ct = eval { $rsa_sign->private_encrypt($msg) };
+    ok(!$@, "private_encrypt with PKCS#1 v1.5 succeeds");
+    my $pt = eval { $rsa_verify->public_decrypt($ct) };
+    ok(!$@, "public_decrypt with PKCS#1 v1.5 succeeds");
+    is($pt, $msg, "private_encrypt/public_decrypt PKCS#1 v1.5 round-trips");
+
+    # With default OAEP padding (should fall back for signing ops)
+    my $rsa_sign2 = Crypt::OpenSSL::RSA->generate_key(2048);
+    my $rsa_verify2 = Crypt::OpenSSL::RSA->new_public_key($rsa_sign2->get_public_key_string());
+    $ct = eval { $rsa_sign2->private_encrypt($msg) };
+    ok(!$@, "private_encrypt with default padding succeeds");
+    $pt = eval { $rsa_verify2->public_decrypt($ct) };
+    ok(!$@, "public_decrypt with default padding succeeds");
+    is($pt, $msg, "private_encrypt/public_decrypt default padding round-trips");
 }
 
 # Try
