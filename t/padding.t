@@ -8,7 +8,7 @@ use Crypt::OpenSSL::Guess qw(openssl_version);
 my ($major, $minor, $patch) = openssl_version;
 
 BEGIN {
-    plan tests => 87 + ( UNIVERSAL::can( "Crypt::OpenSSL::RSA", "use_sha512_hash" ) ? 4 * 5 : 0 );
+    plan tests => 130 + ( UNIVERSAL::can( "Crypt::OpenSSL::RSA", "use_sha512_hash" ) ? 4 * 5 : 0 );
 }
 
 sub _Test_Encrypt_And_Decrypt {
@@ -81,7 +81,7 @@ is( $rsa_priv->decrypt( $rsa_priv->encrypt($plaintext) ), $plaintext, "private k
 
 my $rsa_pub = Crypt::OpenSSL::RSA->new_public_key($public_key_string);
 
-my @unsupported_paddings = qw/pkcs1 sslv23/;
+my @unsupported_paddings = qw/sslv23/;
 
 $plaintext .= $plaintext x 5;
 # pkcs1 sslv23 are unsupported methods
@@ -97,7 +97,7 @@ foreach my $pad (@unsupported_paddings) {
     }
 }
 
-my @supported_paddings = qw/no pkcs1_pss pkcs1_oaep/;
+my @supported_paddings = qw/no pkcs1 pkcs1_pss pkcs1_oaep/;
 # no pkcs1_pss pkcs1_oaep are supported methods
 foreach my $pad (@supported_paddings) {
     my $method = "use_${pad}_padding";
@@ -113,7 +113,7 @@ my %padding_methods = (
                        'no'          => {'sign' => 1, 'encrypt' => 1, 'pad' => 0},
                        'pkcs1_pss'   => {'sign' => 1, 'encrypt' => 0, 'pad' => 1},
                        'pkcs1_oaep'  => {'sign' => 0, 'encrypt' => 1, 'pad' => 42},
-                       'pkcs1'       => {'sign' => 0, 'encrypt' => 0, 'pad' => 11},
+                       'pkcs1'       => {'sign' => 1, 'encrypt' => 0, 'pad' => 11},
                        #'sslv23'      => {'sign' => 0, 'encrypt' => 0, 'pad' => 11},
                     );
 
@@ -155,6 +155,45 @@ foreach my $padding (keys %padding_methods) {
         }
 
     }
+}
+
+# PKCS#1 v1.5 padding is allowed for signing but not for encryption (Marvin attack)
+SKIP: {
+    skip "PKCS#1 v1.5 encryption croak test requires OpenSSL 3.x", 2 unless $major ge '3.0';
+    $rsa->use_pkcs1_padding;
+    eval { $rsa->encrypt("test") };
+    like($@, qr/Marvin attack/, "PKCS#1 v1.5 encrypt croaks with Marvin attack warning");
+
+    eval { $rsa->decrypt("test" x 64) };
+    like($@, qr/Marvin attack/, "PKCS#1 v1.5 decrypt croaks with Marvin attack warning");
+
+    # Restore default padding
+    $rsa->use_pkcs1_oaep_padding;
+}
+
+# PKCS#1 v1.5 private_encrypt/public_decrypt (raw RSA signing, not affected by Marvin)
+{
+    my $rsa_sign = Crypt::OpenSSL::RSA->generate_key(2048);
+    my $rsa_verify = Crypt::OpenSSL::RSA->new_public_key($rsa_sign->get_public_key_string());
+
+    # With explicit PKCS#1 v1.5 padding
+    $rsa_sign->use_pkcs1_padding;
+    $rsa_verify->use_pkcs1_padding;
+    my $msg = "PKCS1 v1.5 private_encrypt test";
+    my $ct = eval { $rsa_sign->private_encrypt($msg) };
+    ok(!$@, "private_encrypt with PKCS#1 v1.5 succeeds");
+    my $pt = eval { $rsa_verify->public_decrypt($ct) };
+    ok(!$@, "public_decrypt with PKCS#1 v1.5 succeeds");
+    is($pt, $msg, "private_encrypt/public_decrypt PKCS#1 v1.5 round-trips");
+
+    # With default OAEP padding (should fall back for signing ops)
+    my $rsa_sign2 = Crypt::OpenSSL::RSA->generate_key(2048);
+    my $rsa_verify2 = Crypt::OpenSSL::RSA->new_public_key($rsa_sign2->get_public_key_string());
+    $ct = eval { $rsa_sign2->private_encrypt($msg) };
+    ok(!$@, "private_encrypt with default padding succeeds");
+    $pt = eval { $rsa_verify2->public_decrypt($ct) };
+    ok(!$@, "public_decrypt with default padding succeeds");
+    is($pt, $msg, "private_encrypt/public_decrypt default padding round-trips");
 }
 
 # Try

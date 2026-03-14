@@ -82,12 +82,14 @@ Crypt::OpenSSL::RSA - RSA encoding and decoding, using the openSSL libraries
 
 =head1 SECURITY
 
-Version 0.35 makes the use of PKCS#1 v1.5 padding a fatal error.  It is
-very difficult to implement PKCS#1 v1.5 padding securely.  If you are still
-using RSA in in general, you should be looking at alternative encryption
-algorithms.  Version 0.36 implements RSA-PSS padding (PKCS#1 v2.1) and makes
-setting an invalid padding a fatal error.  Note, PKCS1_OAEP can only be used
-for encryption and PKCS1_PSS can only be used for signing.
+PKCS#1 v1.5 padding for B<encryption> is disabled due to the Marvin attack
+(CVE-2024-2467).  Calling C<encrypt> or C<decrypt> with PKCS#1 v1.5 padding
+will croak.  Use C<use_pkcs1_oaep_padding> for encryption operations.
+
+PKCS#1 v1.5 padding for B<signatures> (C<sign>/C<verify>) remains available
+and is the default, as RSASSA-PKCS1-v1.5 is not vulnerable to the Marvin
+attack (which targets decryption padding oracles only).  RSA-PSS
+(C<use_pkcs1_pss_padding>) is also available for signatures.
 
 =head1 DESCRIPTION
 
@@ -113,9 +115,6 @@ C<-----BEGIN...-----> and C<-----END...-----> lines.
 
 The padding is set to PKCS1_OAEP, but can be changed with the
 C<use_xxx_padding> methods.
-
-Note, PKCS1_OAEP can only be used for encryption.  You must call
-C<use_pkcs1_pss_padding> prior to signing operations.
 
 =item new_private_key
 
@@ -244,20 +243,15 @@ Check the signature on a text.
 
 =head1 Padding Methods
 
-Versions prior to 0.35 allowed using pkcs1 padding for both encryption
-and signature operations but has been disabled for security reasons.
+PKCS#1 v1.5 padding for B<encryption> (C<encrypt>/C<decrypt>) is disabled
+to mitigate the Marvin attack (CVE-2024-2467).
 
-While B<use_no_padding> can be used for encryption or signature operations
-B<use_pkcs1_pss_padding> is used for signature operations and
-B<use_pkcs1_oaep_padding> is used for encryption operations.
+PKCS#1 v1.5 padding for B<signatures> (C<sign>/C<verify>) is allowed and is
+the default behavior, matching pre-0.35 versions.  RSASSA-PKCS1-v1.5
+signatures are not vulnerable to the Marvin attack.
 
-On OpenSSL 3.x, the appropriate padding is set for each operation unless
-B<use_no_padding> is called before either operation.
-
-B<Note:> while C<pkcs1-pss> is the effective replacement for <pkcs1> your
-use case may require some additional steps.  JSON Web Tokens (JWT) for
-instance require the algorithm to be changed from "RS256" for "pkcs1"
-(SHA1256) to "PS256" for "pkcs1-pss" (SHA-256 and MGF1 with SHA-256)
+C<use_pkcs1_oaep_padding> is the recommended padding for encryption.
+C<use_pkcs1_pss_padding> is available as an alternative for signatures.
 
 =over
 
@@ -269,11 +263,13 @@ Encrypting user data directly with RSA is insecure.
 
 =item use_pkcs1_padding
 
-PKCS #1 v1.5 padding has been disabled as it is nearly impossible to use this
-padding method in a secure manner.  It is known to be vulnerable to timing
-based side channel attacks.  use_pkcs1_padding() results in a fatal error.
+Use C<PKCS #1 v1.5> padding.  This padding is allowed for signature
+operations (C<sign>/C<verify>) where it provides RSASSA-PKCS1-v1.5
+(e.g. RS256 for JWT).
 
-L<Marvin Attack|https://github.com/tomato42/marvin-toolkit/blob/master/README.md>
+B<Not allowed for encryption> (C<encrypt>/C<decrypt>): will croak due to
+the L<Marvin Attack|https://github.com/tomato42/marvin-toolkit/blob/master/README.md>
+(CVE-2024-2467).  Use C<use_pkcs1_oaep_padding> for encryption instead.
 
 =item use_pkcs1_oaep_padding
 
