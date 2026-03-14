@@ -20,13 +20,13 @@ sub _Test_Encrypt_And_Decrypt {
             map { int( rand 256 ) } ( 1 .. $p_plaintext_length - 5 )
         )
     );
-    ok( $ciphertext   = $p_rsa->encrypt($plaintext) );
-    ok( $decoded_text = $p_rsa->decrypt($ciphertext) );
+    ok( $ciphertext   = $p_rsa->encrypt($plaintext), "encrypt succeeds" );
+    ok( $decoded_text = $p_rsa->decrypt($ciphertext), "decrypt succeeds" );
     is( $decoded_text, $plaintext, "decrypted text matches plaintext" );
 
     if ($p_check_private_encrypt) {
-        ok( $ciphertext   = $p_rsa->private_encrypt($plaintext) );
-        ok( $decoded_text = $p_rsa->public_decrypt($ciphertext) );
+        ok( $ciphertext   = $p_rsa->private_encrypt($plaintext), "private_encrypt succeeds" );
+        ok( $decoded_text = $p_rsa->public_decrypt($ciphertext), "public_decrypt succeeds" );
         is( $decoded_text, $plaintext, "public_decrypt(private_encrypt(plaintext)) round-trips" );
     }
 }
@@ -72,7 +72,7 @@ is( Crypt::OpenSSL::RSA->generate_key(512)->size() * 8, 512, "512-bit key has co
 
 my $rsa = Crypt::OpenSSL::RSA->generate_key(2048);
 is( $rsa->size() * 8, 2048, "2048-bit key has correct size" );
-ok( $rsa->check_key() );
+ok( $rsa->check_key(), "2048-bit key passes check_key()" );
 
 $rsa->use_no_padding();
 _Test_Encrypt_And_Decrypt( $rsa->size(), $rsa, 1 );
@@ -87,7 +87,7 @@ _Test_Encrypt_And_Decrypt( $rsa->size() - 42, $rsa, 0 );
 my $private_key_string = $rsa->get_private_key_string();
 my $public_key_string  = $rsa->get_public_key_string();
 
-ok( $private_key_string and $public_key_string );
+ok( $private_key_string and $public_key_string, "get_private_key_string and get_public_key_string return data" );
 
 my $plaintext = "The quick brown fox jumped over the lazy dog";
 my $rsa_priv  = Crypt::OpenSSL::RSA->new_private_key($private_key_string);
@@ -97,8 +97,8 @@ my $rsa_pub = Crypt::OpenSSL::RSA->new_public_key($public_key_string);
 $rsa->use_pkcs1_oaep_padding();
 is( $rsa->decrypt( $rsa_pub->encrypt($plaintext) ), $plaintext, "pub encrypt + priv decrypt round-trips" );
 
-ok( $rsa_priv->is_private() );
-ok( !$rsa_pub->is_private() );
+ok( $rsa_priv->is_private(), "private key reports is_private() true" );
+ok( !$rsa_pub->is_private(), "public key reports is_private() false" );
 
 _check_for_croak(
     sub { $rsa_pub->decrypt( $rsa_pub->encrypt($plaintext) ); },
@@ -177,7 +177,7 @@ if ( UNIVERSAL::can( "Crypt::OpenSSL::RSA", "use_whirlpool_hash" ) ) {
 # check subclassing
 
 eval { Crypt::OpenSSL::RSA::Subpackage->generate_key(512); };
-ok( !$@ );
+ok( !$@, "subclass generate_key() succeeds" );
 
 package Crypt::OpenSSL::RSA::Subpackage;
 
