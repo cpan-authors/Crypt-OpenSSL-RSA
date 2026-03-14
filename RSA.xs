@@ -1010,7 +1010,7 @@ sign(p_rsa, text_SV)
     }
     CHECK_OPEN_SSL(EVP_PKEY_sign(ctx, NULL, &signature_length, digest, get_digest_length(p_rsa->hashMode)) == 1);
 
-    //signature = OPENSSL_malloc(signature_length);
+    Safefree(signature);
     Newx(signature, signature_length, char);
 
     CHECK_OPEN_SSL(signature);
