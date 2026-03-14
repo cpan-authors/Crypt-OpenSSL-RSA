@@ -327,6 +327,12 @@ SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
 
     from = (unsigned char*) SvPV(p_from, from_length);
     size = EVP_PKEY_get_size(p_rsa->rsa);
+
+    if(p_rsa->padding == RSA_PKCS1_PADDING) {
+        croak("PKCS#1 v1.5 padding for encryption is vulnerable to the Marvin attack. "
+              "Use use_pkcs1_oaep_padding() for encryption, or use_pkcs1_padding() with sign()/verify().");
+    }
+
     CHECK_NEW(to, size, UNSIGNED_CHAR);
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
 
@@ -990,7 +996,7 @@ void
 use_pkcs1_padding(p_rsa)
     rsaData* p_rsa;
   CODE:
-    croak("PKCS#1 1.5 is disabled as it is known to be vulnerable to marvin attacks.");
+    p_rsa->padding = RSA_PKCS1_PADDING;
 
 void
 use_pkcs1_oaep_padding(p_rsa)
@@ -1043,7 +1049,7 @@ sign(p_rsa, text_SV)
     THROW(ctx);
     THROW(EVP_PKEY_sign_init(ctx));
     sign_pad = p_rsa->padding;
-    if (p_rsa->padding != RSA_NO_PADDING) {
+    if (p_rsa->padding != RSA_NO_PADDING && p_rsa->padding != RSA_PKCS1_PADDING) {
         sign_pad = RSA_PKCS1_PSS_PADDING;
     }
     THROW(EVP_PKEY_CTX_set_rsa_padding(ctx, sign_pad) > 0);
@@ -1114,9 +1120,8 @@ PPCODE:
     ctx = EVP_PKEY_CTX_new(p_rsa->rsa, NULL /* no engine */);
     CHECK_OPEN_SSL(ctx);
     CHECK_OPEN_SSL(EVP_PKEY_verify_init(ctx) == 1);
-    /* FIXME: Issue setting padding in some cases */
     int verify_pad = p_rsa->padding;
-    if (p_rsa->padding != RSA_NO_PADDING) {
+    if (p_rsa->padding != RSA_NO_PADDING && p_rsa->padding != RSA_PKCS1_PADDING) {
         verify_pad = RSA_PKCS1_PSS_PADDING;
     }
     CHECK_OPEN_SSL(EVP_PKEY_CTX_set_rsa_padding(ctx, verify_pad) > 0);

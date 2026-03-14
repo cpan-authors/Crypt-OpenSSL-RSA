@@ -8,7 +8,7 @@ use Crypt::OpenSSL::Guess qw(openssl_version);
 my ($major, $minor, $patch) = openssl_version;
 
 BEGIN {
-    plan tests => 87 + ( UNIVERSAL::can( "Crypt::OpenSSL::RSA", "use_sha512_hash" ) ? 4 * 5 : 0 );
+    plan tests => 123 + ( UNIVERSAL::can( "Crypt::OpenSSL::RSA", "use_sha512_hash" ) ? 4 * 5 : 0 );
 }
 
 sub _Test_Encrypt_And_Decrypt {
@@ -81,24 +81,23 @@ is( $rsa_priv->decrypt( $rsa_priv->encrypt($plaintext) ), $plaintext, "private k
 
 my $rsa_pub = Crypt::OpenSSL::RSA->new_public_key($public_key_string);
 
-my @unsupported_paddings = qw/pkcs1 sslv23/;
-
 $plaintext .= $plaintext x 5;
-# pkcs1 sslv23 are unsupported methods
-foreach my $pad (@unsupported_paddings) {
-    my $method = "use_${pad}_padding";
-    SKIP: {
-        skip "OpenSSL version less than 3.0 supports sslv23", 1
-            if $major lt '3.0' && $pad eq 'sslv23';
-        eval {
-            $rsa->$method;
-        };
-        ok($@, "Padding method $pad unsupported");
-    }
+# sslv23 is unsupported on OpenSSL 3.x
+SKIP: {
+    skip "OpenSSL version less than 3.0 supports sslv23", 1
+        if $major lt '3.0';
+    eval {
+        $rsa->use_sslv23_padding;
+    };
+    ok($@, "Padding method sslv23 unsupported on OpenSSL 3.x");
 }
 
-my @supported_paddings = qw/no pkcs1_pss pkcs1_oaep/;
-# no pkcs1_pss pkcs1_oaep are supported methods
+# pkcs1 is supported (for signatures, not encryption)
+eval { $rsa->use_pkcs1_padding; };
+ok(!$@, "Padding method pkcs1 supported");
+
+my @supported_paddings = qw/no pkcs1 pkcs1_pss pkcs1_oaep/;
+# no pkcs1 pkcs1_pss pkcs1_oaep are supported methods
 foreach my $pad (@supported_paddings) {
     my $method = "use_${pad}_padding";
     eval {
@@ -113,7 +112,7 @@ my %padding_methods = (
                        'no'          => {'sign' => 1, 'encrypt' => 1, 'pad' => 0},
                        'pkcs1_pss'   => {'sign' => 1, 'encrypt' => 0, 'pad' => 1},
                        'pkcs1_oaep'  => {'sign' => 0, 'encrypt' => 1, 'pad' => 42},
-                       'pkcs1'       => {'sign' => 0, 'encrypt' => 0, 'pad' => 11},
+                       'pkcs1'       => {'sign' => 1, 'encrypt' => 0, 'pad' => 11},
                        #'sslv23'      => {'sign' => 0, 'encrypt' => 0, 'pad' => 11},
                     );
 
