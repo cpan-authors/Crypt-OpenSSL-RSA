@@ -6,7 +6,7 @@ use Crypt::OpenSSL::RSA;
 use Crypt::OpenSSL::Guess qw(openssl_version);
 
 BEGIN {
-    plan tests => 67 + ( UNIVERSAL::can( "Crypt::OpenSSL::RSA", "use_sha512_hash" ) ? 4 * 5 : 0 ) + ( UNIVERSAL::can( "Crypt::OpenSSL::RSA", "use_whirlpool_hash" ) ? 1 * 5 : 0 );
+    plan tests => 78 + ( UNIVERSAL::can( "Crypt::OpenSSL::RSA", "use_sha512_hash" ) ? 8 * 5 : 0 ) + ( UNIVERSAL::can( "Crypt::OpenSSL::RSA", "use_whirlpool_hash" ) ? 1 * 5 : 0 );
 }
 
 sub _Test_Encrypt_And_Decrypt {
@@ -122,7 +122,7 @@ _check_for_croak(
 
 $plaintext .= $plaintext x 5;
 
-my @paddings = qw/pkcs1_oaep pkcs1_pss/;
+my @paddings = qw/pkcs1 pkcs1_oaep pkcs1_pss/;
 foreach my $padding (@paddings) {
   my $p = "use_${padding}_padding";
 
@@ -173,6 +173,13 @@ if ( UNIVERSAL::can( "Crypt::OpenSSL::RSA", "use_whirlpool_hash" ) ) {
     $rsa_pub->use_whirlpool_hash();
     _Test_Sign_And_Verify( $plaintext, $rsa, $rsa_pub, "whirlpool" );
 }
+
+# PKCS#1 v1.5 encryption must croak (Marvin attack)
+$rsa->use_pkcs1_padding();
+_check_for_croak(
+    sub { $rsa->encrypt("test") },
+    "Marvin attack"
+);
 
 # check subclassing
 
