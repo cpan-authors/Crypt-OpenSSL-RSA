@@ -3,7 +3,7 @@ use Test::More;
 
 use Crypt::OpenSSL::RSA;
 
-BEGIN { plan tests => 19 }
+BEGIN { plan tests => 25 }
 
 my $PRIVATE_KEY_STRING = <<EOF;
 -----BEGIN RSA PRIVATE KEY-----
@@ -88,3 +88,27 @@ ok( $private_key2 = Crypt::OpenSSL::RSA->new_private_key( $private_key->get_priv
 is( $private_key2->get_private_key_string(), $DECRYPT_PRIVATE_KEY_STRING, "des3-encrypted key round-trips" );
 ok( $private_key2 = Crypt::OpenSSL::RSA->new_private_key( $private_key->get_private_key_string( $passphase, 'aes-128-cbc' ), $passphase ), "encrypt with aes-128-cbc and reload" );
 is( $private_key2->get_private_key_string(), $DECRYPT_PRIVATE_KEY_STRING, "aes-128-cbc-encrypted key round-trips" );
+
+# Error path: unrecognized public key format
+eval { Crypt::OpenSSL::RSA->new_public_key("not a key at all") };
+like( $@, qr/unrecognized key format/, "new_public_key croaks on unrecognized format" );
+
+# Error path: cipher without passphrase
+eval { $private_key->get_private_key_string(undef, 'aes-128-cbc') };
+like( $@, qr/Passphrase is required/, "get_private_key_string croaks when cipher given without passphrase" );
+
+# Error path: unsupported cipher name
+eval { $private_key->get_private_key_string('secret', 'no-such-cipher') };
+like( $@, qr/Unsupported cipher/, "get_private_key_string croaks on unsupported cipher" );
+
+# Error path: wrong passphrase for encrypted key
+eval { Crypt::OpenSSL::RSA->new_private_key( $ENCRYPT_PRIVATE_KEY_STRING, 'wrong-passphrase' ) };
+ok( $@, "new_private_key croaks with wrong passphrase" );
+
+# Error path: garbage private key
+eval { Crypt::OpenSSL::RSA->new_private_key("not a valid PEM key\n") };
+ok( $@, "new_private_key croaks on garbage input" );
+
+# Error path: truncated PEM (valid header, invalid body)
+eval { Crypt::OpenSSL::RSA->new_private_key("-----BEGIN RSA PRIVATE KEY-----\ngarbage\n-----END RSA PRIVATE KEY-----\n") };
+ok( $@, "new_private_key croaks on truncated PEM" );
