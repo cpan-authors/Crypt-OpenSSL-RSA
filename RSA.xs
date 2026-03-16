@@ -336,16 +336,10 @@ SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
     }
 
     EVP_PKEY_CTX *ctx = NULL;
-    OSSL_LIB_CTX *ossllibctx = NULL;
     int error = 0;
     int crypt_pad;
 
-    ossllibctx = OSSL_LIB_CTX_new();
-    if (public) {
-        ctx = EVP_PKEY_CTX_new_from_pkey(ossllibctx, (EVP_PKEY* )p_rsa->rsa, NULL);
-    } else {
-        ctx = EVP_PKEY_CTX_new((EVP_PKEY* )p_rsa->rsa, NULL);
-    }
+    ctx = EVP_PKEY_CTX_new_from_pkey(NULL, (EVP_PKEY* )p_rsa->rsa, NULL);
 
     THROW(ctx);
 
@@ -359,12 +353,10 @@ SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
     THROW(p_crypt(ctx, to, &to_length, from, from_length) == 1);
 
     EVP_PKEY_CTX_free(ctx);
-    OSSL_LIB_CTX_free(ossllibctx);
 
     goto crypt_done;
     err:
         if (ctx) EVP_PKEY_CTX_free(ctx);
-        if (ossllibctx) OSSL_LIB_CTX_free(ossllibctx);
         Safefree(to);
         CHECK_OPEN_SSL(0);
     crypt_done:
