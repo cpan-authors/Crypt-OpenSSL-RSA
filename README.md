@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/toddr/Crypt-OpenSSL-RSA.png?branch=master)](https://travis-ci.org/toddr/Crypt-OpenSSL-RSA)
+[\![testsuite](https://github.com/cpan-authors/Crypt-OpenSSL-RSA/actions/workflows/testsuite.yml/badge.svg)](https://github.com/cpan-authors/Crypt-OpenSSL-RSA/actions/workflows/testsuite.yml)
 
 # NAME
 
@@ -33,12 +33,12 @@ Crypt::OpenSSL::RSA - RSA encoding and decoding, using the openSSL libraries
 
 # SECURITY
 
-Version 0.35 makes the use of PKCS#1 v1.5 padding a fatal error.  It is
-very difficult to implement PKCS#1 v1.5 padding securely.  If you are still
-using RSA in in general, you should be looking at alternative encryption
-algorithms.  Version 0.36 implements RSA-PSS padding (PKCS#1 v2.1) and makes
-setting an invalid padding a fatal error.  Note, PKCS1\_OAEP can only be used
-for encryption and PKCS1\_PSS can only be used for signing.
+Version 0.35 disabled PKCS#1 v1.5 padding entirely to mitigate the Marvin
+attack.  However, the Marvin attack only affects PKCS#1 v1.5 **decryption**
+(padding oracle), not **signatures**.  Version 0.38 re-enables
+`use_pkcs1_padding()` for use with `sign()` and `verify()`, while keeping
+it disabled for `encrypt()` and `decrypt()`.  PKCS1\_OAEP should be used
+for encryption and either PKCS1\_PSS or PKCS1 can be used for signing.
 
 # DESCRIPTION
 
@@ -63,9 +63,8 @@ this (never documented) behavior is no longer the case.
     The padding is set to PKCS1\_OAEP, but can be changed with the
     `use_xxx_padding` methods.
 
-    Note, PKCS1\_OAEP can only be used for encryption.  You must specifically
-    call use\_pkcs1\_pss\_padding (or use\_pkcs1\_pss\_padding) prior to signing
-    operations.
+    Note, PKCS1\_OAEP can only be used for encryption.  Call
+    `use_pkcs1_pss_padding` or `use_pkcs1_padding` prior to signing operations.
 
 - new\_private\_key
 
@@ -99,6 +98,19 @@ this (never documented) behavior is no longer the case.
     not necessary for a private key, their presence will speed up
     computation.
 
+    An optional `check => 1` parameter can be passed after the key
+    components to validate the key immediately after construction:
+
+        my $rsa = Crypt::OpenSSL::RSA->new_key_from_parameters(
+            $n, $e, $d, $p, $q, check => 1
+        );
+
+    When enabled, `check_key()` is called on the resulting key.  If the
+    key parameters are inconsistent (e.g. wrong CRT values, mismatched
+    n/e/d/p/q), the constructor will croak instead of returning an object
+    that fails at first use.  The check is only performed on private keys;
+    public-only keys (n and e only) are returned without validation.
+
 - import\_random\_seed
 
     Import a random seed from [Crypt::OpenSSL::Random](https://metacpan.org/pod/Crypt%3A%3AOpenSSL%3A%3ARandom), since the OpenSSL
@@ -120,6 +132,13 @@ this (never documented) behavior is no longer the case.
 
         -----BEGIN RSA PUBLIC KEY------
         -----END RSA PUBLIC KEY------
+
+- get\_public\_key\_pkcs1\_string
+
+    Alias for `get_public_key_string`.  Returns the same PKCS#1
+    `RSAPublicKey` PEM format (`BEGIN RSA PUBLIC KEY`).  Provided for
+    naming symmetry with the import method `new_public_key` (which
+    auto-detects PKCS#1 vs X.509) and with `get_public_key_x509_string`.
 
 - get\_public\_key\_x509\_string
 
@@ -180,20 +199,13 @@ this (never documented) behavior is no longer the case.
 
 # Padding Methods
 
-Versions prior to 0.35 allowed using pkcs1 padding for both encryption
-and signature operations but has been disabled for security reasons.
-
-While **use\_no\_padding** can be used for encryption or signature operations
-**use\_pkcs1\_pss\_padding** is used for signature operations and
+**use\_pkcs1\_padding** can be used for signature operations (`sign()` and
+`verify()`).  PKCS#1 v1.5 encryption is disabled due to the Marvin attack.
+**use\_pkcs1\_pss\_padding** is the recommended replacement for signatures.
 **use\_pkcs1\_oaep\_padding** is used for encryption operations.
 
-Version 0.38 sets the appropriate padding for each operation unless
-**use\_no\_padding** is called before either operation.
-
-**Note:** while "pkcs1-pss" is the effective replacement for "pkcs1" your
-use case may require some additional steps.  JSON Web Tokens (JWT) for
-instance require the algorithm to be changed from "RS256" for "pkcs1"
-(SHA1256) to "PS256" for "pkcs1-pss" (SHA-256 and MGF1 with SHA-256)
+On OpenSSL 3.x, the appropriate padding is set for each operation unless
+**use\_no\_padding** or **use\_pkcs1\_padding** is called before the operation.
 
 - use\_no\_padding
 
@@ -203,11 +215,15 @@ instance require the algorithm to be changed from "RS256" for "pkcs1"
 
 - use\_pkcs1\_padding
 
-    PKCS #1 v1.5 padding has been disabled as it is nearly impossible to use this
-    padding method in a secure manner.  It is known to be vulnerable to timing
-    based side channel attacks.  use\_pkcs1\_padding() results in a fatal error.
+    Use `PKCS #1 v1.5` padding for **signature operations only**.  PKCS#1 v1.5
+    signatures (RSASSA-PKCS1-v1.5) are secure and widely required by protocols
+    such as JWT RS256, ACME (RFC 8555), and SAML.
 
-    [Marvin Attack](https://github.com/tomato42/marvin-toolkit/blob/master/README.md)
+    **Note**: PKCS#1 v1.5 **encryption** is disabled because it is vulnerable to
+    the [Marvin Attack](https://github.com/tomato42/marvin-toolkit/blob/master/README.md)
+    (a timing side-channel on decryption padding validation).  Calling
+    `encrypt()` or `decrypt()` with this padding will croak.  Use
+    `use_pkcs1_oaep_padding()` for encryption.
 
 - use\_pkcs1\_oaep\_padding
 
@@ -231,7 +247,10 @@ instance require the algorithm to be changed from "RS256" for "pkcs1"
     Use `PKCS #1 v1.5` padding with an SSL-specific modification that
     denotes that the server is SSL3 capable.
 
-    Not available since OpenSSL 3.
+    **Not available on OpenSSL 3.x or later.**  Calling this method will
+    croak with a descriptive error message suggesting alternatives.
+    Use `use_pkcs1_oaep_padding()` for encryption or
+    `use_pkcs1_pss_padding()` for signatures.
 
 # Hash/Digest Methods
 
@@ -299,11 +318,7 @@ instance require the algorithm to be changed from "RS256" for "pkcs1"
 
 - is\_private
 
-    Return true if this is a private key, and false if it is private only.
-
-# BUGS
-
-There is a small memory leak when generating new keys of more than 512 bits.
+    Return true if this is a private key, and false if it is public only.
 
 # AUTHOR
 
@@ -317,10 +332,6 @@ Ian Robertson, `iroberts@cpan.org`.  For support, please email
 Copyright (c) 2001-2011 Ian Robertson.  Crypt::OpenSSL::RSA is free
 software; you may redistribute it and/or modify it under the same
 terms as Perl itself.
-
-# AI POLICY
-
-This project uses AI tools to assist development. Humans review and approve every change before it is merged. See [AI\_POLICY.md](AI_POLICY.md) for details.
 
 # SEE ALSO
 

@@ -29,13 +29,13 @@ SYNOPSIS
       print "Signed correctly\n" if ($rsa->verify($plaintext, $signature));
 
 SECURITY
-    Version 0.35 makes the use of PKCS#1 v1.5 padding a fatal error. It is
-    very difficult to implement PKCS#1 v1.5 padding securely. If you are
-    still using RSA in in general, you should be looking at alternative
-    encryption algorithms. Version 0.36 implements RSA-PSS padding (PKCS#1
-    v2.1) and makes setting an invalid padding a fatal error. Note,
-    PKCS1_OAEP can only be used for encryption and PKCS1_PSS can only be
-    used for signing.
+    Version 0.35 disabled PKCS#1 v1.5 padding entirely to mitigate the
+    Marvin attack. However, the Marvin attack only affects PKCS#1 v1.5
+    decryption (padding oracle), not signatures. Version 0.38 re-enables
+    "use_pkcs1_padding()" for use with "sign()" and "verify()", while
+    keeping it disabled for "encrypt()" and "decrypt()". PKCS1_OAEP should
+    be used for encryption and either PKCS1_PSS or PKCS1 can be used for
+    signing.
 
 DESCRIPTION
     "Crypt::OpenSSL::RSA" provides the ability to RSA encrypt strings which
@@ -57,9 +57,9 @@ Class Methods
         The padding is set to PKCS1_OAEP, but can be changed with the
         "use_xxx_padding" methods.
 
-        Note, PKCS1_OAEP can only be used for encryption. You must
-        specifically call use_pkcs1_pss_padding (or use_pkcs1_pss_padding)
-        prior to signing operations.
+        Note, PKCS1_OAEP can only be used for encryption. Call
+        "use_pkcs1_pss_padding" or "use_pkcs1_padding" prior to signing
+        operations.
 
     new_private_key
         Create a new "Crypt::OpenSSL::RSA" object by loading a private key
@@ -90,6 +90,20 @@ Class Methods
         not necessary for a private key, their presence will speed up
         computation.
 
+        An optional "check => 1" parameter can be passed after the key
+        components to validate the key immediately after construction:
+
+          my $rsa = Crypt::OpenSSL::RSA->new_key_from_parameters(
+              $n, $e, $d, $p, $q, check => 1
+          );
+
+        When enabled, "check_key()" is called on the resulting key. If the
+        key parameters are inconsistent (e.g. wrong CRT values, mismatched
+        n/e/d/p/q), the constructor will croak instead of returning an
+        object that fails at first use. The check is only performed on
+        private keys; public-only keys (n and e only) are returned without
+        validation.
+
     import_random_seed
         Import a random seed from Crypt::OpenSSL::Random, since the OpenSSL
         libraries won't allow sharing of random structures across perl XS
@@ -106,6 +120,12 @@ Instance Methods
 
           -----BEGIN RSA PUBLIC KEY------
           -----END RSA PUBLIC KEY------
+
+    get_public_key_pkcs1_string
+        Alias for "get_public_key_string". Returns the same PKCS#1
+        "RSAPublicKey" PEM format ("BEGIN RSA PUBLIC KEY"). Provided for
+        naming symmetry with the import method "new_public_key" (which
+        auto-detects PKCS#1 vs X.509) and with "get_public_key_x509_string".
 
     get_public_key_x509_string
         Return the Base64/DER-encoded representation of the "subject public
@@ -154,20 +174,13 @@ Instance Methods
         Check the signature on a text.
 
 Padding Methods
-    Versions prior to 0.35 allowed using pkcs1 padding for both encryption
-    and signature operations but has been disabled for security reasons.
+    use_pkcs1_padding can be used for signature operations ("sign()" and
+    "verify()"). PKCS#1 v1.5 encryption is disabled due to the Marvin
+    attack. use_pkcs1_pss_padding is the recommended replacement for
+    signatures. use_pkcs1_oaep_padding is used for encryption operations.
 
-    While use_no_padding can be used for encryption or signature operations
-    use_pkcs1_pss_padding is used for signature operations and
-    use_pkcs1_oaep_padding is used for encryption operations.
-
-    Version 0.38 sets the appropriate padding for each operation unless
-    use_no_padding is called before either operation.
-
-    Note: while "pkcs1-pss" is the effective replacement for "pkcs1" your
-    use case may require some additional steps.  JSON Web Tokens (JWT) for
-    instance require the algorithm to be changed from "RS256" for "pkcs1"
-    (SHA1256) to "PS256" for "pkcs1-pss" (SHA-256 and MGF1 with SHA-256)
+    On OpenSSL 3.x, the appropriate padding is set for each operation unless
+    use_no_padding or use_pkcs1_padding is called before the operation.
 
     use_no_padding
         Use raw RSA encryption. This mode should only be used to implement
@@ -175,13 +188,16 @@ Padding Methods
         Encrypting user data directly with RSA is insecure.
 
     use_pkcs1_padding
-        PKCS #1 v1.5 padding has been disabled as it is nearly impossible to
-        use this padding method in a secure manner. It is known to be
-        vulnerable to timing based side channel attacks. use_pkcs1_padding()
-        results in a fatal error.
+        Use "PKCS #1 v1.5" padding for signature operations only. PKCS#1
+        v1.5 signatures (RSASSA-PKCS1-v1.5) are secure and widely required
+        by protocols such as JWT RS256, ACME (RFC 8555), and SAML.
 
-        Marvin Attack
+        Note: PKCS#1 v1.5 encryption is disabled because it is vulnerable to
+        the Marvin Attack
         <https://github.com/tomato42/marvin-toolkit/blob/master/README.md>
+        (a timing side-channel on decryption padding validation). Calling
+        "encrypt()" or "decrypt()" with this padding will croak. Use
+        "use_pkcs1_oaep_padding()" for encryption.
 
     use_pkcs1_oaep_padding
         Use "EME-OAEP" padding as defined in PKCS #1 v2.0 with SHA-1, MGF1
@@ -190,19 +206,23 @@ Padding Methods
         "Crypt::OpenSSL::RSA" but is only valid for encryption/decryption.
 
     use_pkcs1_pss_padding
-        Use RSA-PSS padding as defined in PKCS#1 v2.1. In general, RSA-PSS
+        Use "RSA-PSS" padding as defined in PKCS#1 v2.1. In general, RSA-PSS
         should be used as a replacement for RSA-PKCS#1 v1.5. The module
-        specifies the message digest being requested and the appropriate mgf1
-        setting and salt length for the digest.
+        specifies the message digest being requested and the appropriate
+        mgf1 setting and salt length for the digest.
 
-        Note: RSA-PSS cannot be used for encryption/decryption and results in
-        a fatal error. Call use_pkcs1_oaep_padding for encryption operations.
+        Note: RSA-PSS cannot be used for encryption/decryption and results
+        in a fatal error. Call "use_pkcs1_oaep_padding" for encryption
+        operations.
 
     use_sslv23_padding
         Use "PKCS #1 v1.5" padding with an SSL-specific modification that
         denotes that the server is SSL3 capable.
 
-        Not available since OpenSSL 3.
+        Not available on OpenSSL 3.x or later. Calling this method will
+        croak with a descriptive error message suggesting alternatives. Use
+        "use_pkcs1_oaep_padding()" for encryption or
+        "use_pkcs1_pss_padding()" for signatures.
 
 Hash/Digest Methods
     use_md5_hash
@@ -259,12 +279,8 @@ Hash/Digest Methods
         for this to work.
 
     is_private
-        Return true if this is a private key, and false if it is private
+        Return true if this is a private key, and false if it is public
         only.
-
-BUGS
-    There is a small memory leak when generating new keys of more than 512
-    bits.
 
 AUTHOR
     Ian Robertson, "iroberts@cpan.org". For support, please email
