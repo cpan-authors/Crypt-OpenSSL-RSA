@@ -31,10 +31,11 @@ jobs:
       - uses: actions/checkout@v6
       - run: openssl version
       - run: perl -V
-      - name: uses install-with-cpm
-        uses: perl-actions/install-with-cpm@v1
-        with:
-          cpanfile: "cpanfile"
+      - name: Install cpm and dependencies
+        run: |
+          curl -fsSL --compressed https://raw.githubusercontent.com/skaji/cpm/main/cpm -o cpm
+          chmod +x cpm
+          perl cpm install -g --cpanfile cpanfile
       - name: Makefile.PL
         run: perl -I$(pwd) Makefile.PL
       - run: make && prove -wbvm t/*.t
@@ -56,10 +57,11 @@ jobs:
         run: |
           apt-get update
           apt-get install -y openssl perl make gcc libssl-dev sudo curl valgrind
-      - name: uses install-with-cpm
-        uses: perl-actions/install-with-cpm@v1
-        with:
-          cpanfile: "cpanfile"
+      - name: Install cpm and dependencies
+        run: |
+          curl -fsSL --compressed https://raw.githubusercontent.com/skaji/cpm/main/cpm -o cpm
+          chmod +x cpm
+          perl cpm install -g --cpanfile cpanfile
       - name: Build
         run: |
           perl -I$(pwd) Makefile.PL
@@ -132,10 +134,11 @@ jobs:
           yum install --skip-broken -y openssl perl make gcc openssl-devel sudo curl
       - run: openssl version
       - run: perl -V
-      - name: uses install-with-cpm
-        uses: perl-actions/install-with-cpm@v1
-        with:
-          cpanfile: "cpanfile"
+      - name: Install cpm and dependencies
+        run: |
+          curl -fsSL --compressed https://raw.githubusercontent.com/skaji/cpm/main/cpm -o cpm
+          chmod +x cpm
+          perl cpm install -g --cpanfile cpanfile
       - name: Makefile.PL
         run: perl -I$(pwd) Makefile.PL
       - run: make && prove -wbvm t/*.t
