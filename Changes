@@ -1,5 +1,40 @@
 Revision history for Perl extension Crypt::OpenSSL::RSA.
 
+0.38 (unreleased)
+     Security:
+     - Re-enable PKCS#1 v1.5 padding for sign()/verify() operations.
+       The Marvin attack (CVE-2024-2467) only affects decryption, not
+       signatures.  PKCS#1 v1.5 signatures (RSASSA-PKCS1-v1.5) are
+       required by JWT RS256, ACME (RFC 8555), SAML, and other protocols.
+       Encryption with PKCS#1 v1.5 remains disabled. (Fixes #61, #146)
+
+     Bug fixes:
+     - Fix multiple resource leaks in _new_key_from_parameters() on
+       OpenSSL 3.x (EVP_PKEY_CTX, OSSL_PARAM_BLD, BIGNUM parameters)
+     - Fix double-free of BIGNUMs in _new_key_from_parameters() error paths
+     - Fix resource leaks in rsa_crypt(), sign(), verify(), generate_key(),
+       and get_public_key_string() error paths on OpenSSL 3.x
+     - Fix sign() buffer leak on pre-3.x when RSA_sign() fails
+     - Fix check PEM write return values in key export functions
+     - Fix check_key() return value normalization (-1/-2 treated as false)
+     - Fix use BN_clear_free() for private key BIGNUMs in _get_key_parameters()
+     - Fix croakSsl() crash when OpenSSL error queue is empty
+     - Fix thread-unsafe static buffer in get_message_digest()
+     - Fix use canonical two-pass buffer allocation in rsa_crypt() on 3.x
+     - Fix drain full OpenSSL error queue in croakSsl() for accurate errors
+     - Fix PSS auto-promote: check actual padding sent to EVP, not stored mode
+     - Migrate deprecated SHA* one-shot functions to EVP_Q_digest on 3.x
+
+     Features:
+     - Add use_sslv23_padding() Perl stub on OpenSSL 3.x (clear croak message)
+     - Add get_public_key_pkcs1_string() alias for API naming symmetry
+     - Add optional check=>1 parameter to new_key_from_parameters()
+     - Add valgrind CI job for memory leak detection
+
+     Tests:
+     - Extensive new test coverage for error paths, edge cases, key lifecycle,
+       private_encrypt/public_decrypt, PSS auto-promote cross-verification
+
 0.37 Oct 29 2025
      - Fix libressl bitwise logic error in RSA.xs
 
