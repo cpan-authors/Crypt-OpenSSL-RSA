@@ -117,6 +117,16 @@ my %padding_methods = (
                        #'sslv23'      => {'sign' => 0, 'encrypt' => 0, 'pad' => 11},
                     );
 
+# OAEP overhead is 2*hLen+2 (RFC 8017 §7.1.1); compute per-hash for SHA variants
+my %digest_lengths = (
+    'md5'       => 16,
+    'sha1'      => 20,
+    'sha224'    => 28,
+    'sha256'    => 32,
+    'sha384'    => 48,
+    'sha512'    => 64,
+    'ripemd160' => 20,
+);
 
 foreach my $padding (keys %padding_methods) {
     diag $padding;
@@ -157,7 +167,12 @@ foreach my $padding (keys %padding_methods) {
 
         # Valid encryption methods with padding
         if ($encrypt) {
-           _Test_Encrypt_And_Decrypt( $rsa->size() - $pad, $rsa, 0, $padding, $hash );
+            my $size = $rsa->size();
+            my $max_len = $size - $pad;
+            if ( $padding eq 'pkcs1_oaep' && $hash =~ /sha/ ) {
+                $max_len = $size - ($digest_lengths{$hash} * 2) - 2;
+            }
+            _Test_Encrypt_And_Decrypt( $max_len, $rsa, 0, $padding, $hash );
         }
 
     }

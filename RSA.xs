@@ -401,54 +401,58 @@ EVP_PKEY*  _load_rsa_key(SV* p_keyStringSv,
 #endif
     return rsa;
 }
+
+/* Pre-validate plaintext length before passing to OpenSSL.
+   Call this only for encryption operations (encrypt, private_encrypt),
+   not for decryption where the input is already-sized ciphertext. */
+static void check_max_message_length(rsaData* p_rsa, STRLEN from_length)
+{
+    int size;
+    int max_len = -1;
+    const char *pad_name = NULL;
+
+    size = EVP_PKEY_get_size(p_rsa->rsa);
+
+    if (p_rsa->padding == RSA_PKCS1_OAEP_PADDING) {
+        int digest_length = get_digest_length(p_rsa->hashMode);
+        max_len = size - (2 * digest_length) - 2;  /* OAEP overhead: 2*hLen + 2 */
+        pad_name = "OAEP";
+    } else if (p_rsa->padding == RSA_PKCS1_PADDING) {
+        max_len = size - 11;  /* PKCS#1 v1.5 overhead */
+        pad_name = "PKCS#1 v1.5";
+    } else if (p_rsa->padding == RSA_NO_PADDING) {
+        max_len = size;
+        pad_name = "no";
+    }
+
+    if (max_len >= 0 && from_length > (size_t)max_len) {
+        croak("plaintext too long for key size with %s padding"
+              " (%d bytes max, got %d)", pad_name, max_len, (int)from_length);
+    }
+}
+
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
 
 SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
               int (*p_crypt)(EVP_PKEY_CTX*, unsigned char*, size_t*, const unsigned char*, size_t),
-              int (*init_crypt)(EVP_PKEY_CTX*), int public, int is_encrypt)
+              int (*init_crypt)(EVP_PKEY_CTX*), int is_encrypt)
 #else
 
 SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
-              int (*p_crypt)(int, const unsigned char*, unsigned char*, RSA*, int), int public, int is_encrypt)
+              int (*p_crypt)(int, const unsigned char*, unsigned char*, RSA*, int), int is_encrypt)
 #endif
 {
     STRLEN from_length;
     SIZE_T_INT to_length;
-    int size;
     unsigned char* from;
     UNSIGNED_CHAR *to = NULL;
     SV* sv;
 
     from = (unsigned char*) SvPV(p_from, from_length);
-    size = EVP_PKEY_get_size(p_rsa->rsa);
 
     if(is_encrypt && p_rsa->padding == RSA_PKCS1_PADDING) {
         croak("PKCS#1 v1.5 padding for encryption is vulnerable to the Marvin attack. "
               "Use use_pkcs1_oaep_padding() for encryption, or use_pkcs1_padding() with sign()/verify().");
-    }
-
-    /* Pre-validate plaintext length before calling OpenSSL.
-       Only applies to encryption direction (encrypt, private_encrypt),
-       not to decryption (decrypt, public_decrypt) where input is ciphertext. */
-    if (public == is_encrypt) {
-        int max_len = -1;
-        const char *pad_name = NULL;
-
-        if (p_rsa->padding == RSA_PKCS1_OAEP_PADDING) {
-            max_len = size - 42;  /* 2 * SHA1_DIGEST_LENGTH + 2 */
-            pad_name = "OAEP";
-        } else if (p_rsa->padding == RSA_PKCS1_PADDING) {
-            max_len = size - 11;  /* PKCS#1 v1.5 overhead */
-            pad_name = "PKCS#1 v1.5";
-        } else if (p_rsa->padding == RSA_NO_PADDING) {
-            max_len = size;
-            pad_name = "no";
-        }
-
-        if (max_len >= 0 && (int)from_length > max_len) {
-            croak("plaintext too long for key size with %s padding"
-                  " (%d bytes max, got %d)", pad_name, max_len, (int)from_length);
-        }
     }
 
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
@@ -488,9 +492,12 @@ SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
         CHECK_OPEN_SSL(0);
     crypt_done:
 #else
-    CHECK_NEW(to, size, UNSIGNED_CHAR);
-    to_length = p_crypt(
-       from_length, from, (unsigned char*) to, p_rsa->rsa, p_rsa->padding);
+    {
+        int size = EVP_PKEY_get_size(p_rsa->rsa);
+        CHECK_NEW(to, size, UNSIGNED_CHAR);
+        to_length = p_crypt(
+           from_length, from, (unsigned char*) to, p_rsa->rsa, p_rsa->padding);
+    }
 #endif
     if (to_length < 0)
     {
@@ -1146,10 +1153,11 @@ encrypt(p_rsa, p_plaintext)
     rsaData* p_rsa;
     SV* p_plaintext;
   CODE:
+    check_max_message_length(p_rsa, sv_len(p_plaintext));
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    RETVAL = rsa_crypt(p_rsa, p_plaintext, EVP_PKEY_encrypt, EVP_PKEY_encrypt_init, 1 /* public */, 1 /* is_encrypt */);
+    RETVAL = rsa_crypt(p_rsa, p_plaintext, EVP_PKEY_encrypt, EVP_PKEY_encrypt_init, 1 /* is_encrypt */);
 #else
-    RETVAL = rsa_crypt(p_rsa, p_plaintext, RSA_public_encrypt, 1 /* public */, 1 /* is_encrypt */);
+    RETVAL = rsa_crypt(p_rsa, p_plaintext, RSA_public_encrypt, 1 /* is_encrypt */);
 #endif
   OUTPUT:
     RETVAL
@@ -1164,9 +1172,9 @@ decrypt(p_rsa, p_ciphertext)
         croak("Public keys cannot decrypt");
     }
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    RETVAL = rsa_crypt(p_rsa, p_ciphertext, EVP_PKEY_decrypt, EVP_PKEY_decrypt_init, 0 /* private */, 1 /* is_encrypt */);
+    RETVAL = rsa_crypt(p_rsa, p_ciphertext, EVP_PKEY_decrypt, EVP_PKEY_decrypt_init, 1 /* is_encrypt */);
 #else
-    RETVAL = rsa_crypt(p_rsa, p_ciphertext, RSA_private_decrypt, 0 /* private */, 1 /* is_encrypt */);
+    RETVAL = rsa_crypt(p_rsa, p_ciphertext, RSA_private_decrypt, 1 /* is_encrypt */);
 #endif
   OUTPUT:
     RETVAL
@@ -1180,10 +1188,11 @@ private_encrypt(p_rsa, p_plaintext)
     {
         croak("Public keys cannot private_encrypt");
     }
+    check_max_message_length(p_rsa, sv_len(p_plaintext));
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    RETVAL = rsa_crypt(p_rsa, p_plaintext, EVP_PKEY_sign, EVP_PKEY_sign_init,  0 /* private */, 0 /* is_encrypt */);
+    RETVAL = rsa_crypt(p_rsa, p_plaintext, EVP_PKEY_sign, EVP_PKEY_sign_init, 0 /* is_encrypt */);
 #else
-    RETVAL = rsa_crypt(p_rsa, p_plaintext, RSA_private_encrypt, 0 /* private */, 0 /* is_encrypt */);
+    RETVAL = rsa_crypt(p_rsa, p_plaintext, RSA_private_encrypt, 0 /* is_encrypt */);
 #endif
   OUTPUT:
     RETVAL
@@ -1194,9 +1203,9 @@ public_decrypt(p_rsa, p_ciphertext)
     SV* p_ciphertext;
   CODE:
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    RETVAL = rsa_crypt(p_rsa, p_ciphertext, EVP_PKEY_verify_recover, EVP_PKEY_verify_recover_init, 1 /*public */, 0 /* is_encrypt */);
+    RETVAL = rsa_crypt(p_rsa, p_ciphertext, EVP_PKEY_verify_recover, EVP_PKEY_verify_recover_init, 0 /* is_encrypt */);
 #else
-    RETVAL = rsa_crypt(p_rsa, p_ciphertext, RSA_public_decrypt, 1 /* public */, 0 /* is_encrypt */);
+    RETVAL = rsa_crypt(p_rsa, p_ciphertext, RSA_public_decrypt, 0 /* is_encrypt */);
 #endif
   OUTPUT:
     RETVAL

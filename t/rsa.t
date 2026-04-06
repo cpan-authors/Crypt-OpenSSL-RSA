@@ -80,7 +80,9 @@ _Test_Encrypt_And_Decrypt( $rsa->size(), $rsa, 1 );
 $rsa->use_pkcs1_oaep_padding();
 
 # private_encrypt does not work with pkcs1_oaep_padding
-_Test_Encrypt_And_Decrypt( $rsa->size() - 42, $rsa, 0 );
+my $hash_size = 32;           # SHA-256 (default hash mode, 32 bytes)
+my $oaep_max = $rsa->size() - (2 * $hash_size) - 2;
+_Test_Encrypt_And_Decrypt( $oaep_max, $rsa, 0 );
 
 #FIXME - use_sslv23_padding seems to fail on decryption.  openssl bug?
 

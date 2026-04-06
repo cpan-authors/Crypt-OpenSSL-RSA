@@ -15,11 +15,12 @@ Crypt::OpenSSL::RSA->import_random_seed();
 my $rsa  = Crypt::OpenSSL::RSA->generate_key(2048);
 my $rsa2 = Crypt::OpenSSL::RSA->generate_key(2048);
 my $key_size = $rsa->size();  # 256 bytes for 2048-bit key
+my $hash_size = 32;           # SHA-256 (default hash mode, 32 bytes)
 
 # --- OAEP boundary tests ---
 
 $rsa->use_pkcs1_oaep_padding();
-my $oaep_max = $key_size - 42;  # SHA-1 OAEP overhead
+my $oaep_max = $key_size - (2 * $hash_size) - 2;  # OAEP overhead: 2*hLen + 2
 
 # Max-length plaintext that fits OAEP
 {

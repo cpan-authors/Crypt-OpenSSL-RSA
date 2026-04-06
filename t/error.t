@@ -86,7 +86,8 @@ ok($@, "decrypt croaks on empty ciphertext");
 # --- Plaintext too large for padding mode ---
 
 $rsa->use_pkcs1_oaep_padding();
-my $max_oaep = $rsa->size() - 42;
+my $hash_size = 32;           # SHA-256 (default hash mode, 32 bytes)
+my $max_oaep = $rsa->size() - (2 * $hash_size) - 2;  # OAEP overhead: 2*hLen + 2
 my $too_large = "x" x ($max_oaep + 1);
 eval { $rsa->encrypt($too_large) };
 ok($@, "encrypt croaks when plaintext exceeds OAEP max size");
