@@ -248,11 +248,19 @@ EVP_MD *get_md_bynid(int hash_method)
 static int
 setup_pss_sign_ctx(EVP_PKEY_CTX *ctx, int padding, int hash_nid, EVP_MD **md_out)
 {
-    int effective_pad = padding;
+    int effective_pad;
     EVP_MD *md = NULL;
 
-    if (padding != RSA_NO_PADDING && padding != RSA_PKCS1_PADDING)
+    if (padding == RSA_PKCS1_PSS_PADDING) {
         effective_pad = RSA_PKCS1_PSS_PADDING;
+    } else if (padding == RSA_NO_PADDING) {
+        effective_pad = RSA_NO_PADDING;
+    } else {
+        /* Default: RSASSA-PKCS1-v1.5, matching pre-3.x RSA_sign() behavior.
+         * PKCS#1 v1.5 signatures are not vulnerable to the Marvin attack
+         * (CVE-2024-2467), which only affects decryption padding oracles. */
+        effective_pad = RSA_PKCS1_PADDING;
+    }
 
     if (EVP_PKEY_CTX_set_rsa_padding(ctx, effective_pad) <= 0)
         return 0;
@@ -453,7 +461,7 @@ SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
 
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
 
-    if(p_rsa->padding == RSA_PKCS1_PSS_PADDING) {
+    if(is_encrypt && p_rsa->padding == RSA_PKCS1_PSS_PADDING) {
         croak("PKCS#1 v2.1 RSA-PSS cannot be used for encryption operations call \"use_pkcs1_oaep_padding\" instead.");
     }
 
@@ -470,8 +478,18 @@ SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
        values here are RSA_NO_PADDING and RSA_PKCS1_OAEP_PADDING (for
        encrypt/decrypt) or RSA_PKCS1_PADDING (for private_encrypt/public_decrypt). */
     crypt_pad = p_rsa->padding;
-    if (is_encrypt && p_rsa->padding != RSA_NO_PADDING) {
-        crypt_pad = RSA_PKCS1_OAEP_PADDING;
+    if (is_encrypt) {
+        /* Encryption: force OAEP for all non-NO_PADDING modes */
+        if (p_rsa->padding != RSA_NO_PADDING) {
+            crypt_pad = RSA_PKCS1_OAEP_PADDING;
+        }
+    } else {
+        /* private_encrypt/public_decrypt: use the actual padding.
+         * PKCS#1 v1.5 is valid here (RSASSA-PKCS1-v1.5 type 1 padding).
+         * OAEP is not valid for signing — fall back to PKCS#1 v1.5. */
+        if (p_rsa->padding == RSA_PKCS1_OAEP_PADDING) {
+            crypt_pad = RSA_PKCS1_PADDING;
+        }
     }
     THROW(EVP_PKEY_CTX_set_rsa_padding(ctx, crypt_pad) > 0);
     THROW(p_crypt(ctx, NULL, &to_length, from, from_length) == 1);
@@ -490,8 +508,15 @@ SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
 #else
     size = EVP_PKEY_get_size(p_rsa->rsa);
     CHECK_NEW(to, size, UNSIGNED_CHAR);
+    {
+    int crypt_pad = p_rsa->padding;
+    if (!is_encrypt && crypt_pad == RSA_PKCS1_OAEP_PADDING) {
+        /* OAEP is not valid for private_encrypt/public_decrypt — fall back to PKCS#1 v1.5 */
+        crypt_pad = RSA_PKCS1_PADDING;
+    }
     to_length = p_crypt(
-       from_length, from, (unsigned char*) to, p_rsa->rsa, p_rsa->padding);
+       from_length, from, (unsigned char*) to, p_rsa->rsa, crypt_pad);
+    }
 #endif
     if (to_length < 0)
     {

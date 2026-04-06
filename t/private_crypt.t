@@ -9,7 +9,7 @@ use Crypt::OpenSSL::RSA;
 #   pre-3.x: RSA_private_encrypt / RSA_public_decrypt
 #   3.x:     EVP_PKEY_sign / EVP_PKEY_verify_recover
 
-plan tests => 16;
+plan tests => 17;
 
 Crypt::OpenSSL::Random::random_seed("OpenSSL needs at least 32 bytes.");
 Crypt::OpenSSL::RSA->import_random_seed();
@@ -136,13 +136,22 @@ my $rsa_pub = Crypt::OpenSSL::RSA->new_public_key($rsa->get_public_key_string())
     ok($@, "PSS padding cannot be used with private_encrypt");
 }
 
-# --- OAEP padding rejected for private_encrypt ---
-# OAEP is an encryption scheme, invalid for sign-type operations.
+# --- OAEP padding falls back to PKCS#1 v1.5 for private_encrypt ---
+# OAEP is an encryption scheme; for sign-type operations it falls back
+# to PKCS#1 v1.5 (matching the default padding behavior).
 
 {
     $rsa->use_pkcs1_oaep_padding();
-    eval { $rsa->private_encrypt("oaep test") };
-    ok($@, "OAEP padding cannot be used with private_encrypt");
+    $rsa_pub->use_pkcs1_oaep_padding();
+    my $msg = "oaep fallback test";
+    my $ct = eval { $rsa->private_encrypt($msg) };
+    ok(!$@, "private_encrypt with OAEP falls back to PKCS#1 v1.5")
+        or diag $@;
+    SKIP: {
+        skip "private_encrypt failed", 1 if $@;
+        my $pt = eval { $rsa_pub->public_decrypt($ct) };
+        is($pt, $msg, "OAEP fallback round-trips via public_decrypt");
+    }
 }
 
 # --- Public key cannot private_encrypt ---
