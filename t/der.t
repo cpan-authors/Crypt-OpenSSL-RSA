@@ -4,7 +4,7 @@ use Test::More;
 use MIME::Base64;
 use Crypt::OpenSSL::RSA;
 
-BEGIN { plan tests => 22 }
+BEGIN { plan tests => 23 }
 
 # --- Generate a key pair for testing ---
 
@@ -92,6 +92,11 @@ $priv_from_der->use_sha256_hash();
 my $sig2 = $priv_from_der->sign($plaintext);
 ok( $pub_from_x509_der->verify($plaintext, $sig2),
     "signature from DER-loaded private key verifies" );
+
+# Error: passphrase with DER key
+eval { Crypt::OpenSSL::RSA->new_private_key($priv_der, "secret") };
+like( $@, qr/passphrase.*not supported.*DER/,
+    "new_private_key croaks when passphrase given with DER key" );
 
 # Error: DER-like data for private key
 eval { Crypt::OpenSSL::RSA->new_private_key("\x30\x00") };

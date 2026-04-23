@@ -62,7 +62,8 @@ sub new_private_key {
         return $proto->_new_private_key_pem($p_key_string, @rest);
     }
     elsif ( substr($p_key_string, 0, 1) eq "\x30" ) {
-        # ASN.1 SEQUENCE tag detected — likely DER-encoded private key.
+        croak "passphrase argument not supported for DER-encoded keys"
+            if @rest;
         return $proto->_new_private_key_der($p_key_string);
     }
     else {
