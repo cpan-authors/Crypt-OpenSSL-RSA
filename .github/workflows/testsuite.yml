@@ -32,7 +32,7 @@ jobs:
       - run: openssl version
       - run: perl -V
       - name: uses install-with-cpm
-        uses: perl-actions/install-with-cpm@v1
+        uses: perl-actions/install-with-cpm@v2
         with:
           cpanfile: "cpanfile"
       - name: Makefile.PL
@@ -57,7 +57,7 @@ jobs:
           apt-get update
           apt-get install -y openssl perl make gcc libssl-dev sudo curl valgrind
       - name: uses install-with-cpm
-        uses: perl-actions/install-with-cpm@v1
+        uses: perl-actions/install-with-cpm@v2
         with:
           cpanfile: "cpanfile"
       - name: Build
@@ -133,7 +133,7 @@ jobs:
       - run: openssl version
       - run: perl -V
       - name: uses install-with-cpm
-        uses: perl-actions/install-with-cpm@v1
+        uses: perl-actions/install-with-cpm@v2
         with:
           cpanfile: "cpanfile"
       - name: Makefile.PL
