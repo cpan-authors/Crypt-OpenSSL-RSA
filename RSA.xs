@@ -367,12 +367,11 @@ SV* extractBioString(BIO* p_stringBio)
     SV* sv;
     char* datap;
     long datasize;
-    int error = 0;
 
-    THROW(BIO_flush(p_stringBio) == 1);
+    if (BIO_flush(p_stringBio) != 1) goto err;
 
     datasize = BIO_get_mem_data(p_stringBio, &datap);
-    THROW(datasize > 0);
+    if (datasize <= 0) goto err;
 
     sv = newSVpv(datap, datasize);
 
@@ -526,12 +525,12 @@ SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
     CHECK_NEW(to, size, UNSIGNED_CHAR);
     to_length = p_crypt(
        from_length, from, (unsigned char*) to, p_rsa->rsa, p_rsa->padding);
-#endif
     if (to_length < 0)
     {
         Safefree(to);
         CHECK_OPEN_SSL(0);
     }
+#endif
     sv = newSVpv((char* ) to, to_length);
     Safefree(to);
     return sv;
@@ -1505,9 +1504,12 @@ PPCODE:
     STRLEN sig_length;
 
     sig = (unsigned char*) SvPV(sig_SV, sig_length);
-    if (EVP_PKEY_get_size(p_rsa->rsa) < sig_length)
     {
-        croak("Signature longer than key");
+        int key_size = EVP_PKEY_get_size(p_rsa->rsa);
+        if (key_size < 0 || (STRLEN)key_size < sig_length)
+        {
+            croak("Signature longer than key");
+        }
     }
 
     unsigned char digest_buf[EVP_MAX_MD_SIZE];
