@@ -49,6 +49,27 @@ static int _write_pkcs8_pem(BIO* bio, RSA* rsa, const EVP_CIPHER* enc,
 }
 #endif
 
+/* Pre-3.x helper for PKCS#8 DER export: wraps RSA* in a real EVP_PKEY
+   and writes PKCS#8 DER.  Placed BEFORE the EVP_PKEY->RSA compatibility
+   macros so that EVP_PKEY, EVP_PKEY_new, EVP_PKEY_free, and
+   i2d_PKCS8PrivateKey_bio resolve to their real OpenSSL symbols. */
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+static int _write_pkcs8_der(BIO* bio, RSA* rsa, const EVP_CIPHER* enc,
+                            unsigned char* pass, int passlen)
+{
+    EVP_PKEY* pkey = EVP_PKEY_new();
+    int ok;
+    if (!pkey) return 0;
+    if (!EVP_PKEY_set1_RSA(pkey, rsa)) {
+        EVP_PKEY_free(pkey);
+        return 0;
+    }
+    ok = i2d_PKCS8PrivateKey_bio(bio, pkey, enc, (char*)pass, passlen, NULL, NULL);
+    EVP_PKEY_free(pkey);
+    return ok;
+}
+#endif
+
 /* Pre-3.x helper for loading encrypted PKCS#8 DER private keys.
    Placed BEFORE the EVP_PKEY->RSA compatibility macros so that
    EVP_PKEY, EVP_PKEY_free, and EVP_PKEY_get1_RSA resolve to their
@@ -752,6 +773,27 @@ get_private_key_string(p_rsa, passphrase_SV=&PL_sv_undef, cipher_name_SV=&PL_sv_
     RETVAL
 
 SV*
+get_private_key_der_string(p_rsa)
+    rsaData* p_rsa;
+  PREINIT:
+    BIO* stringBIO;
+  CODE:
+    if (!_is_private(p_rsa))
+    {
+        croak("Public keys cannot export private key strings");
+    }
+    CHECK_OPEN_SSL(stringBIO = BIO_new(BIO_s_mem()));
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    CHECK_OPEN_SSL_BIO(i2d_PrivateKey_bio(stringBIO, p_rsa->rsa), stringBIO);
+#else
+    CHECK_OPEN_SSL_BIO(i2d_RSAPrivateKey_bio(stringBIO, p_rsa->rsa), stringBIO);
+#endif
+    RETVAL = extractBioString(stringBIO);
+
+  OUTPUT:
+    RETVAL
+
+SV*
 get_private_key_pkcs8_string(p_rsa, passphrase_SV=&PL_sv_undef, cipher_name_SV=&PL_sv_undef)
     rsaData* p_rsa;
     SV* passphrase_SV;
@@ -786,6 +828,52 @@ get_private_key_pkcs8_string(p_rsa, passphrase_SV=&PL_sv_undef, cipher_name_SV=&
         stringBIO, p_rsa->rsa, enc, (unsigned char*) passphrase, passphraseLength, NULL, NULL), stringBIO);
 #else
     CHECK_OPEN_SSL_BIO(_write_pkcs8_pem(
+        stringBIO, p_rsa->rsa, enc, (unsigned char*) passphrase, passphraseLength), stringBIO);
+#endif
+    RETVAL = extractBioString(stringBIO);
+
+  OUTPUT:
+    RETVAL
+
+SV*
+get_private_key_pkcs8_der_string(p_rsa, passphrase_SV=&PL_sv_undef, cipher_name_SV=&PL_sv_undef)
+    rsaData* p_rsa;
+    SV* passphrase_SV;
+    SV* cipher_name_SV;
+  PREINIT:
+    BIO* stringBIO;
+    char* passphrase = NULL;
+    STRLEN passphraseLength = 0;
+    char* cipher_name;
+    const EVP_CIPHER* enc = NULL;
+  CODE:
+    if (!_is_private(p_rsa))
+    {
+        croak("Public keys cannot export private key strings");
+    }
+    if (SvPOK(cipher_name_SV) && !SvPOK(passphrase_SV)) {
+        croak("Passphrase is required for cipher");
+    }
+    if (SvPOK(passphrase_SV)) {
+        passphrase = SvPV(passphrase_SV, passphraseLength);
+        if (SvPOK(cipher_name_SV)) {
+            cipher_name = SvPV_nolen(cipher_name_SV);
+        }
+        else {
+            cipher_name = "des3";
+        }
+        enc = EVP_get_cipherbyname(cipher_name);
+        if (enc == NULL) {
+            croak("Unsupported cipher: %s", cipher_name);
+        }
+    }
+
+    CHECK_OPEN_SSL(stringBIO = BIO_new(BIO_s_mem()));
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    CHECK_OPEN_SSL_BIO(i2d_PKCS8PrivateKey_bio(
+        stringBIO, p_rsa->rsa, enc, passphrase, passphraseLength, NULL, NULL), stringBIO);
+#else
+    CHECK_OPEN_SSL_BIO(_write_pkcs8_der(
         stringBIO, p_rsa->rsa, enc, (unsigned char*) passphrase, passphraseLength), stringBIO);
 #endif
     RETVAL = extractBioString(stringBIO);
@@ -829,6 +917,38 @@ get_public_key_string(p_rsa)
     RETVAL
 
 SV*
+get_public_key_der_string(p_rsa)
+    rsaData* p_rsa;
+  PREINIT:
+    BIO* stringBIO;
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    OSSL_ENCODER_CTX *ctx = NULL;
+    int error = 0;
+#endif
+  CODE:
+    CHECK_OPEN_SSL(stringBIO = BIO_new(BIO_s_mem()));
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    ctx = OSSL_ENCODER_CTX_new_for_pkey(p_rsa->rsa, OSSL_KEYMGMT_SELECT_PUBLIC_KEY,
+            "DER", "PKCS1", NULL);
+    THROW(ctx != NULL && OSSL_ENCODER_CTX_get_num_encoders(ctx));
+    THROW(OSSL_ENCODER_to_bio(ctx, stringBIO) == 1);
+    OSSL_ENCODER_CTX_free(ctx);
+    ctx = NULL;
+    goto pubkey_pkcs1_der_done;
+    err:
+        if (ctx) { OSSL_ENCODER_CTX_free(ctx); ctx = NULL; }
+        BIO_free(stringBIO);
+        CHECK_OPEN_SSL(0);
+    pubkey_pkcs1_der_done:
+#else
+    CHECK_OPEN_SSL_BIO(i2d_RSAPublicKey_bio(stringBIO, p_rsa->rsa), stringBIO);
+#endif
+    RETVAL = extractBioString(stringBIO);
+
+  OUTPUT:
+    RETVAL
+
+SV*
 get_public_key_x509_string(p_rsa)
     rsaData* p_rsa;
   PREINIT:
@@ -836,6 +956,23 @@ get_public_key_x509_string(p_rsa)
   CODE:
     CHECK_OPEN_SSL(stringBIO = BIO_new(BIO_s_mem()));
     CHECK_OPEN_SSL_BIO(PEM_write_bio_PUBKEY(stringBIO, p_rsa->rsa), stringBIO);
+    RETVAL = extractBioString(stringBIO);
+
+  OUTPUT:
+    RETVAL
+
+SV*
+get_public_key_x509_der_string(p_rsa)
+    rsaData* p_rsa;
+  PREINIT:
+    BIO* stringBIO;
+  CODE:
+    CHECK_OPEN_SSL(stringBIO = BIO_new(BIO_s_mem()));
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    CHECK_OPEN_SSL_BIO(i2d_PUBKEY_bio(stringBIO, p_rsa->rsa), stringBIO);
+#else
+    CHECK_OPEN_SSL_BIO(i2d_RSA_PUBKEY_bio(stringBIO, p_rsa->rsa), stringBIO);
+#endif
     RETVAL = extractBioString(stringBIO);
 
   OUTPUT:
