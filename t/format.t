@@ -7,7 +7,7 @@ use Crypt::OpenSSL::Guess qw(openssl_version);
 
 my ($major, $minor, $patch) = openssl_version();
 
-BEGIN { plan tests => 56 }
+BEGIN { plan tests => 57 }
 
 my $PRIVATE_KEY_STRING = <<EOF;
 -----BEGIN RSA PRIVATE KEY-----
@@ -129,6 +129,10 @@ my $pub_only = Crypt::OpenSSL::RSA->new_public_key($PUBLIC_KEY_PKCS1_STRING);
 eval { $pub_only->get_private_key_string() };
 like($@, qr/Public keys cannot export private key strings/,
     "get_private_key_string croaks on public-only key");
+
+eval { $pub_only->get_private_key_pkcs8_string() };
+like($@, qr/Public keys cannot export private key strings/,
+    "get_private_key_pkcs8_string croaks on public-only key");
 
 # --- Error: wrong passphrase on re-import ---
 
