@@ -11,7 +11,7 @@ print "OpenSSL version: $major.$minor $patch", "\n";
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
 
-my $libs = ' -lssl -lcrypto';
+my $libs = ' -lcrypto';
 if ( $Config{osname} eq 'aix' ) {
   $libs = $libs . ' -lz';
 }
