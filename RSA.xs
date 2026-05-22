@@ -103,12 +103,6 @@ typedef struct
     int is_private_key;  /* cached once at construction; avoids per-call BIGNUM alloc on 3.x */
 } rsaData;
 
-/* Key names for the rsa hash structure */
-
-#define KEY_KEY "_Key"
-#define PADDING_KEY "_Padding"
-#define HASH_KEY "_Hash_Mode"
-
 #define PACKAGE_NAME "Crypt::OpenSSL::RSA"
 
 #ifdef LIBRESSL_VERSION_NUMBER
@@ -195,35 +189,26 @@ int get_digest_length(int hash_method)
     {
         case NID_md5:
             return MD5_DIGEST_LENGTH;
-            break;
         case NID_sha1:
             return SHA_DIGEST_LENGTH;
-            break;
 #ifdef SHA512_DIGEST_LENGTH
         case NID_sha224:
             return SHA224_DIGEST_LENGTH;
-            break;
         case NID_sha256:
             return SHA256_DIGEST_LENGTH;
-            break;
         case NID_sha384:
             return SHA384_DIGEST_LENGTH;
-            break;
         case NID_sha512:
             return SHA512_DIGEST_LENGTH;
-            break;
 #endif
         case NID_ripemd160:
             return RIPEMD160_DIGEST_LENGTH;
-            break;
 #ifdef WHIRLPOOL_DIGEST_LENGTH
         case NID_whirlpool:
             return WHIRLPOOL_DIGEST_LENGTH;
-            break;
 #endif
         default:
             croak("Unknown digest hash mode %u", hash_method);
-            break;
     }
 }
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
