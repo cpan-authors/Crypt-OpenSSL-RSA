@@ -41,42 +41,54 @@ The XS file has 3 code paths controlled by preprocessor conditionals:
 - **0.9.8–2.x** (`>= 0x00908000 && < 0x30000000`): RSA_get0_* getter API
 - **3.x+** (`>= 0x30000000`): EVP_PKEY abstraction, OSSL_PARAM builders, EVP_PKEY_CTX
 
-Compatibility macros (lines 30–54) unify the API: on pre-3.x, `EVP_PKEY` is `#define`d to `RSA`, `EVP_PKEY_free` to `RSA_free`, etc.
+Compatibility macros (lines 72–96) unify the API: on pre-3.x, `EVP_PKEY` is `#define`d to `RSA`, `EVP_PKEY_free` to `RSA_free`, etc.
 
 **Core data structure:**
 ```c
 typedef struct {
-    EVP_PKEY* rsa;   // EVP_PKEY (3.x) or RSA* (pre-3.x)
-    int padding;     // Current padding mode
-    int hashMode;    // Current hash algorithm (NID_*)
+    EVP_PKEY* rsa;          // EVP_PKEY (3.x) or RSA* (pre-3.x)
+    int padding;            // Current padding mode
+    int hashMode;           // Current hash algorithm (NID_*)
+    int is_private_key;     // Cached at construction
 } rsaData;
 ```
 
 **Key helper functions:**
 - `croakSsl()` — Drains full OpenSSL error queue, reports last (most specific) error
 - `rsa_crypt()` — Unified encrypt/decrypt/private_encrypt/public_decrypt with `is_encrypt` flag
-- `get_message_digest()` — Compute hash; uses `EVP_Q_digest()` on 3.x, direct `SHA*()` on pre-3.x
+- `get_message_digest()` — Compute hash; uses `EVP_Digest()` on 3.x, direct `SHA*()` on pre-3.x
 - `make_rsa_obj()` — Create blessed Perl object (default: OAEP padding, SHA-256 hash)
 - `_load_rsa_key()` — PEM key loading via BIO
+- `_write_pkcs8_pem()` — Pre-3.x PKCS#8 PEM export (wraps RSA* in EVP_PKEY)
+- `_load_pkcs8_der_key()` — Pre-3.x encrypted PKCS#8 DER import
+- `setup_pss_sign_ctx()` — 3.x PSS/PKCS1 padding setup for sign/verify contexts
+- `check_max_message_length()` — Validates plaintext length against key size and padding
 
 ### Test Suite
 
-16 test files in `t/`:
+26 test files in `t/`:
 
 | Test | Covers |
 |------|--------|
-| `rsa.t` | Core operations, key generation, sizes |
-| `sign_verify.t` | Signatures across hash algorithms |
-| `crypto.t` | Encryption/decryption boundaries |
-| `padding.t` | PKCS#1 padding modes (OAEP, PSS, v1.5) |
-| `private_crypt.t` | private_encrypt / public_decrypt |
-| `format.t` | Key format conversions (PKCS#1, X.509) |
 | `bignum.t` | Crypt::OpenSSL::Bignum integration |
-| `key_lifecycle.t` | Key generation and parameter derivation |
-| `check_param.t` | Key validation |
-| `error_queue.t` | Error handling |
-| `sig_die.t` | Signal handling |
-| `z_*.t` | Quality checks (POD, META, kwalitee) |
+| `check_param.t` | Key validation, `check => 1` option |
+| `crypto.t` | Encryption/decryption boundaries |
+| `der.t` | DER key import (PKCS#1, X.509, encrypted PKCS#8) |
+| `error.t` | Error handling: malformed keys, wrong ops, corrupted data |
+| `error_queue.t` | OpenSSL error queue behavior |
+| `format.t` | Key format conversions (PKCS#1, X.509, PKCS#8 PEM) |
+| `get_key_parameters.t` | `get_key_parameters()` for private and public keys |
+| `key_lifecycle.t` | Key generation, parameter derivation, round-trips |
+| `keygen.t` | `generate_key()` edge cases (sizes, exponents) |
+| `openssl_der.t` | DER import verified against `openssl` CLI output |
+| `padding.t` | PKCS#1 padding modes (OAEP, PSS, v1.5, SSLv23) |
+| `pkcs1_sign.t` | PKCS#1 v1.5 signatures (ACME/RS256 workflow) |
+| `private_crypt.t` | private_encrypt / public_decrypt |
+| `private_encrypt.t` | private_encrypt error ordering and padding checks |
+| `pss_auto_promote.t` | OAEP→PSS auto-promotion for sign/verify on 3.x |
+| `rsa.t` | Core operations, key generation, sizes |
+| `sign_verify.t` | Cross-hash verification, empty messages, malformed sigs |
+| `z_*.t` | Quality checks (POD, META, kwalitee, min Perl version) |
 
 Tests use dynamic plans (hash algorithm availability varies by OpenSSL build). `t/fakelib/` provides a mock `Crypt::OpenSSL::Bignum` for testing without the real module.
 
