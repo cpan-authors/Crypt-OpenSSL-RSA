@@ -6,7 +6,7 @@ use Crypt::OpenSSL::RSA;
 
 use File::Temp qw(tempfile);
 
-BEGIN { plan tests => 30 }
+BEGIN { plan tests => 35 }
 
 # --- Generate a key pair for testing ---
 
@@ -124,6 +124,32 @@ like( $@, qr/unrecognized key format/,
 eval { Crypt::OpenSSL::RSA->new_public_key("") };
 like( $@, qr/unrecognized key format/,
     "new_public_key gives helpful error on empty string" );
+
+# --- Unencrypted PKCS#8 DER private key ---
+# get_private_key_pkcs8_string() without passphrase produces unencrypted PKCS#8 PEM.
+# Converting to DER gives PrivateKeyInfo (not EncryptedPrivateKeyInfo).
+# On pre-3.x, this requires d2i_PKCS8_PRIV_KEY_INFO_bio, not d2i_RSAPrivateKey_bio.
+
+my $pkcs8_pem = $rsa->get_private_key_pkcs8_string();
+my $pkcs8_der = pem_to_der($pkcs8_pem);
+
+is( ord(substr($pkcs8_der, 0, 1)), 0x30,
+    "Unencrypted PKCS#8 DER starts with SEQUENCE tag" );
+
+my $priv_from_pkcs8_der;
+ok( $priv_from_pkcs8_der = Crypt::OpenSSL::RSA->new_private_key($pkcs8_der),
+    "new_private_key loads unencrypted PKCS#8 DER" );
+
+ok( $priv_from_pkcs8_der->is_private(),
+    "Unencrypted PKCS#8 DER-loaded key is private" );
+
+is( $priv_from_pkcs8_der->get_public_key_x509_string(), $x509_pem,
+    "Unencrypted PKCS#8 DER key exports same public key as original" );
+
+$priv_from_pkcs8_der->use_sha256_hash();
+my $sig_pkcs8 = $priv_from_pkcs8_der->sign($plaintext);
+ok( $pub_from_x509_der->verify($plaintext, $sig_pkcs8),
+    "Signature from unencrypted PKCS#8 DER-loaded key verifies" );
 
 # --- Encrypted PKCS#8 DER private key with passphrase ---
 
