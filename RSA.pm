@@ -11,13 +11,6 @@ our $VERSION = '0.41';
 use XSLoader;
 XSLoader::load 'Crypt::OpenSSL::RSA', $VERSION;
 
-BEGIN {
-    eval {
-        local $SIG{__DIE__};    # prevent outer handlers from being called
-        require Crypt::OpenSSL::Bignum;
-    };
-}    ## no critic qw(RequireCheckingReturnValueOfEval);
-
 sub new_public_key {
     my ( $proto, $p_key_string ) = @_;
     croak "unrecognized key format: expected PEM-encoded key (starting with '-----BEGIN') "
