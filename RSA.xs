@@ -913,6 +913,9 @@ _new_key_from_parameters(proto, n, e, d, p, q)
     BIGNUM* dmq1 = NULL;
     BIGNUM* iqmp = NULL;
     int error = 0;
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+    int xfer = 0;
+#endif
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     OSSL_PARAM *params = NULL;
     EVP_PKEY_CTX *pctx = NULL;
@@ -936,6 +939,7 @@ _new_key_from_parameters(proto, n, e, d, p, q)
 #if OLD_CRUFTY_SSL_VERSION
     rsa->n = n;
     rsa->e = e;
+    xfer = 1;
 #endif
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     THROW(OSSL_PARAM_BLD_push_BN(params_build, OSSL_PKEY_PARAM_RSA_N, n));
@@ -958,10 +962,12 @@ _new_key_from_parameters(proto, n, e, d, p, q)
 #if OLD_CRUFTY_SSL_VERSION
         rsa->p = p;
         rsa->q = q;
+        xfer |= 2;
 #else
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
 #else
         THROW(RSA_set0_factors(rsa, p, q));
+        xfer |= 2;
 #endif
 #endif
         THROW(p_minus_1 = BN_new());
@@ -976,6 +982,7 @@ _new_key_from_parameters(proto, n, e, d, p, q)
         }
 #if OLD_CRUFTY_SSL_VERSION
         rsa->d = d;
+        xfer |= 4;
 #else
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
         THROW(OSSL_PARAM_BLD_push_BN(params_build, OSSL_PKEY_PARAM_RSA_D, d));
@@ -983,6 +990,7 @@ _new_key_from_parameters(proto, n, e, d, p, q)
         THROW(OSSL_PARAM_BLD_push_BN(params_build, OSSL_PKEY_PARAM_RSA_FACTOR2, q));
 #else
         THROW(RSA_set0_key(rsa, n, e, d));
+        xfer |= (1|4);
 #endif
 #endif
         THROW(dmp1 = BN_new());
@@ -1026,8 +1034,12 @@ _new_key_from_parameters(proto, n, e, d, p, q)
         BN_clear_free(dmp1);
         BN_clear_free(dmq1);
         BN_clear_free(iqmp);
-        n = e = d = p = q = NULL;
 #endif
+        /* NULL out all parameter variables — on 3.x they were just
+           freed above; on pre-3.x they were transferred to the RSA
+           struct via set0/direct-assign.  Prevents the err handler
+           from double-freeing on a subsequent THROW (e.g. RSA_check_key). */
+        n = e = d = p = q = NULL;
         dmp1 = dmq1 = iqmp = NULL;
         BN_CTX_free(ctx);
         ctx = NULL;
@@ -1049,7 +1061,7 @@ _new_key_from_parameters(proto, n, e, d, p, q)
     else
     {
 #if OLD_CRUFTY_SSL_VERSION
-        rsa->d = d;
+        rsa->d = d; d = NULL; xfer |= 4;
 #else
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
         if(d != NULL)
@@ -1070,7 +1082,8 @@ _new_key_from_parameters(proto, n, e, d, p, q)
         BN_clear_free(d);
         n = e = d = NULL;
 #else
-        CHECK_OPEN_SSL(RSA_set0_key(rsa, n, e, d));
+        THROW(RSA_set0_key(rsa, n, e, d));
+        xfer |= (1|4); n = NULL; e = NULL; d = NULL;
 #endif
 #endif
     }
@@ -1079,22 +1092,27 @@ _new_key_from_parameters(proto, n, e, d, p, q)
     goto end;
 
     err:
+        /* On pre-3.0, RSA_set0 / direct-assign transfers ownership;
+           xfer tracks which groups were transferred (bit 0=n+e,
+           bit 1=p+q, bit 2=d).  On 3.0+, OSSL_PARAM_BLD copies
+           values so we always own the originals. */
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
-        /* On 3.x, push_BN copies, so originals are always ours to free.
-           On pre-3.x, RSA_set0_key/set0_factors may have taken ownership,
-           so these are intentionally skipped (risk of double-free). */
         BN_clear_free(n);
         BN_clear_free(e);
         BN_clear_free(d);
         BN_clear_free(p);
         BN_clear_free(q);
+#else
+        if (!(xfer & 1)) { BN_clear_free(n); BN_clear_free(e); }
+        if (!(xfer & 2)) { BN_clear_free(p); BN_clear_free(q); }
+        if (!(xfer & 4)) BN_clear_free(d);
 #endif
-        if (p_minus_1) BN_clear_free(p_minus_1);
-        if (q_minus_1) BN_clear_free(q_minus_1);
-        if (dmp1) BN_clear_free(dmp1);
-        if (dmq1) BN_clear_free(dmq1);
-        if (iqmp) BN_clear_free(iqmp);
-        if (ctx) BN_CTX_free(ctx);
+        BN_clear_free(p_minus_1);
+        BN_clear_free(q_minus_1);
+        BN_clear_free(dmp1);
+        BN_clear_free(dmq1);
+        BN_clear_free(iqmp);
+        BN_CTX_free(ctx);
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
         if (pctx) { EVP_PKEY_CTX_free(pctx); pctx = NULL; }
         if (params_build) { OSSL_PARAM_BLD_free(params_build); params_build = NULL; }
