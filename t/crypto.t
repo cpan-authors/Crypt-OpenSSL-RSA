@@ -7,7 +7,7 @@ use Crypt::OpenSSL::RSA;
 # Tests for encrypt/decrypt error paths, boundary conditions, and edge cases.
 # These cover gaps not addressed by rsa.t or padding.t.
 
-plan tests => 20;
+plan tests => 22;
 
 Crypt::OpenSSL::Random::random_seed("OpenSSL needs at least 32 bytes.");
 Crypt::OpenSSL::RSA->import_random_seed();
@@ -154,6 +154,23 @@ $rsa->use_pkcs1_oaep_padding();
     eval { $rsa->encrypt("x" x ($key_size + 1)) };
     like($@, qr/plaintext too long for key size with no padding/,
         "no-padding oversized plaintext gives clear error message");
+}
+
+# --- UTF-8 byte-length validation ---
+# sv_len() returns character count for UTF-8 SVs, which is shorter than the
+# byte count.  The length check must use byte count since OpenSSL operates
+# on bytes.  Construct a UTF-8 string where chars <= max but bytes > max.
+
+{
+    $rsa->use_pkcs1_oaep_padding();
+    my $utf8_str = "\xe9" x 120;
+    utf8::upgrade($utf8_str);  # 120 chars, 240 UTF-8 bytes
+    require bytes;
+    ok(bytes::length($utf8_str) > $oaep_max,
+        "UTF-8 test string byte length exceeds OAEP max");
+    eval { $rsa->encrypt($utf8_str) };
+    like($@, qr/plaintext too long/,
+        "length check uses byte count for UTF-8 strings");
 }
 
 # Decrypt still works (no false positive from validation)

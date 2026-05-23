@@ -426,10 +426,15 @@ EVP_PKEY*  _load_rsa_key(SV* p_keyStringSv,
     return rsa;
 }
 
-static void check_max_message_length(rsaData* p_rsa, STRLEN from_length) {
+static void check_max_message_length(rsaData* p_rsa, SV* from_sv) {
     int size;
     int max_len = -1;
     const char *pad_name = NULL;
+    STRLEN from_length;
+
+    /* sv_len() returns character count for UTF-8 SVs, but encryption
+       operates on bytes.  SvPV always returns the byte length. */
+    (void)SvPV(from_sv, from_length);
 
     size = EVP_PKEY_get_size(p_rsa->rsa);
 
@@ -1204,7 +1209,7 @@ encrypt(p_rsa, p_plaintext)
     rsaData* p_rsa;
     SV* p_plaintext;
   CODE:
-    check_max_message_length(p_rsa, sv_len(p_plaintext));
+    check_max_message_length(p_rsa, p_plaintext);
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     RETVAL = rsa_crypt(p_rsa, p_plaintext, EVP_PKEY_encrypt, EVP_PKEY_encrypt_init, 1 /* is_encrypt */);
 #else
@@ -1247,7 +1252,7 @@ private_encrypt(p_rsa, p_plaintext)
         croak("PSS padding with private_encrypt/public_decrypt is not supported. "
               "Use sign()/verify() for PSS signatures.");
     }
-    check_max_message_length(p_rsa, sv_len(p_plaintext));
+    check_max_message_length(p_rsa, p_plaintext);
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     RETVAL = rsa_crypt(p_rsa, p_plaintext, EVP_PKEY_sign, EVP_PKEY_sign_init, 0 /* is_encrypt */);
 #else
