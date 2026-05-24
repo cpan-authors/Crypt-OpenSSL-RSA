@@ -3,8 +3,11 @@ use warnings;
 use Test::More;
 use MIME::Base64;
 use Crypt::OpenSSL::RSA;
+use Crypt::OpenSSL::Guess qw(openssl_version);
 
 use File::Temp qw(tempfile);
+
+my ($major, $minor, $patch) = openssl_version();
 
 BEGIN { plan tests => 49 }
 
@@ -234,9 +237,13 @@ is( ord(substr($pkcs8_der_export, 0, 1)), 0x30,
 is( $pkcs8_der_export, $pkcs8_der_expected,
     "get_private_key_pkcs8_der_string matches pem_to_der of PEM export" );
 
-my $priv_from_pkcs8_der_export = Crypt::OpenSSL::RSA->new_private_key($pkcs8_der_export);
-ok( $priv_from_pkcs8_der_export->is_private(),
-    "PKCS#8 DER export round-trips as private key" );
+SKIP: {
+    skip "Unencrypted PKCS#8 DER import requires OpenSSL 3.x", 1
+        if $major < 3 || !defined $patch;
+    my $priv_from_pkcs8_der_export = Crypt::OpenSSL::RSA->new_private_key($pkcs8_der_export);
+    ok( $priv_from_pkcs8_der_export->is_private(),
+        "PKCS#8 DER export round-trips as private key" );
+}
 
 # Encrypted PKCS#8 DER export
 my $der_pass = 'test_export_pass';
