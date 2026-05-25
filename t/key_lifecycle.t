@@ -7,10 +7,6 @@ use Crypt::OpenSSL::RSA;
 Crypt::OpenSSL::Random::random_seed("OpenSSL needs at least 32 bytes.");
 Crypt::OpenSSL::RSA->import_random_seed();
 
-my $HAS_BIGNUM = eval { require Crypt::OpenSSL::Bignum; 1 } ? 1 : 0;
-
-# skip() reports skipped tests which count toward total, so plan must
-# always include them regardless of whether Bignum is available.
 plan tests => 9 + 14 + 20 + 2 + 4;
 
 # --- Cross-key operations ---
@@ -58,12 +54,8 @@ ok( $rsa1->verify($plaintext, $sig_copy),
     "original key verifies signature from exported key" );
 
 # --- Key parameter round-trip with real-sized keys ---
-# Requires Crypt::OpenSSL::Bignum
 
-SKIP: {
-    skip "Crypt::OpenSSL::Bignum required for parameter tests", 14
-        unless $HAS_BIGNUM;
-
+{
     # Extract parameters from a 2048-bit key
     my ($n, $e, $d, $p, $q, $dmp1, $dmq1, $iqmp) = $rsa1->get_key_parameters();
 
@@ -116,10 +108,7 @@ SKIP: {
 # Tests for deriving missing p or q from n, and constructing keys
 # from n/e/d without CRT params.
 
-SKIP: {
-    skip "Crypt::OpenSSL::Bignum required for derivation tests", 20
-        unless $HAS_BIGNUM;
-
+{
     my ($n, $e, $d, $p, $q) = $rsa1->get_key_parameters();
 
     # --- Derive q from n and p (pass p, omit q) ---

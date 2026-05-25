@@ -16,7 +16,6 @@ t/crypto.t
 t/der.t
 t/error.t
 t/error_queue.t
-t/fakelib/Crypt/OpenSSL/Bignum.pm
 t/format.t
 t/get_key_parameters.t
 t/key_lifecycle.t

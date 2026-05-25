@@ -7,11 +7,7 @@ use Crypt::OpenSSL::RSA;
 Crypt::OpenSSL::Random::random_seed("OpenSSL needs at least 32 bytes.");
 Crypt::OpenSSL::RSA->import_random_seed();
 
-my $HAS_BIGNUM = $INC{'Crypt/OpenSSL/Bignum.pm'} ? 1 : 0;
-
-$HAS_BIGNUM
-    ? plan( tests => 9 )
-    : plan( skip_all => "Crypt::OpenSSL::Bignum required for check_param tests" );
+plan( tests => 9 );
 
 my $rsa = Crypt::OpenSSL::RSA->generate_key(2048);
 my ( $n, $e, $d, $p, $q ) = $rsa->get_key_parameters();

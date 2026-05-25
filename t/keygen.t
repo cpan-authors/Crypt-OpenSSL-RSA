@@ -12,8 +12,6 @@ use Crypt::OpenSSL::RSA;
 Crypt::OpenSSL::Random::random_seed("OpenSSL needs at least 32 bytes.");
 Crypt::OpenSSL::RSA->import_random_seed();
 
-my $HAS_BIGNUM = eval { require Crypt::OpenSSL::Bignum; 1 } ? 1 : 0;
-
 # Use 2048-bit keys throughout — AlmaLinux 9 and other FIPS-like systems
 # enforce a minimum RSA key size of 2048 bits.
 my $BITS = 2048;
@@ -29,8 +27,7 @@ plan tests => 29;
     ok($rsa->is_private(), "generated key is private");
     ok($rsa->check_key(), "key passes check_key");
 
-    SKIP: {
-        skip "Crypt::OpenSSL::Bignum not available", 1 unless $HAS_BIGNUM;
+    {
         my (undef, $e) = $rsa->get_key_parameters();
         is($e->to_decimal(), "65537", "exponent is 65537");
     }
@@ -51,8 +48,7 @@ plan tests => 29;
         ok($sig, "e=3 key can sign");
         ok($rsa->verify("test message", $sig), "e=3 key signature verifies");
 
-        SKIP: {
-            skip "Crypt::OpenSSL::Bignum not available", 1 unless $HAS_BIGNUM;
+        {
             my (undef, $e) = $rsa->get_key_parameters();
             is($e->to_decimal(), "3", "exponent is 3");
         }
@@ -73,8 +69,7 @@ plan tests => 29;
         my $pt = $rsa->decrypt($ct);
         is($pt, "hello", "e=17 key encrypt/decrypt round-trip");
 
-        SKIP: {
-            skip "Crypt::OpenSSL::Bignum not available", 1 unless $HAS_BIGNUM;
+        {
             my (undef, $e) = $rsa->get_key_parameters();
             is($e->to_decimal(), "17", "exponent is 17");
         }

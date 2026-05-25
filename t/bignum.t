@@ -3,9 +3,7 @@ use Test::More;
 
 use Crypt::OpenSSL::RSA;
 
-$INC{'Crypt/OpenSSL/Bignum.pm'}
-  ? plan( tests    => 64 )
-  : plan( skip_all => "Crypt::OpenSSL::Bignum required for bignum tests" );
+plan( tests => 64 );
 
 my @PARAM_NAMES = qw(n e d p q dmp1 dmq1 iqmp);
 
