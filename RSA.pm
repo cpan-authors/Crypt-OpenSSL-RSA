@@ -485,7 +485,10 @@ the text to be encrypted should be:
 
 =item pkcs1_oaep_padding
 
-at most 42 bytes less than this size.
+at most C<2 * hash_length + 2> bytes less than this size, where
+C<hash_length> is the digest size of the OAEP hash algorithm.
+With the default SHA-1, this is 42 bytes; with SHA-256 it is 66 bytes;
+with SHA-512 it is 130 bytes.  See L</OAEP Hash Methods>.
 
 =item pkcs1_padding or sslv23_padding
 
