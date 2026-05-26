@@ -93,6 +93,8 @@ sub get_key_parameters {
 
 *get_public_key_pkcs1_string = \&get_public_key_string;
 
+sub CLONE_SKIP { 1 }
+
 unless ( defined &use_sslv23_padding ) {
     *use_sslv23_padding = sub {
         croak(  "use_sslv23_padding is not available: "
@@ -486,6 +488,15 @@ C<Crypt::OpenSSL::Bignum> module must be installed for this to work.
 Return true if this is a private key, and false if it is public only.
 
 =back
+
+=head1 THREAD SAFETY
+
+This module defines C<CLONE_SKIP>, which means that
+C<Crypt::OpenSSL::RSA> objects become undefined in child threads
+created via C<threads-E<gt>create()>.  Each thread must construct its
+own key objects.  This prevents double-free crashes that would
+otherwise occur when both parent and child threads destroy the same
+underlying OpenSSL key structure.
 
 =head1 AUTHOR
 
