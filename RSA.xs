@@ -1443,7 +1443,7 @@ sign(p_rsa, text_SV)
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     ctx = EVP_PKEY_CTX_new(p_rsa->rsa, NULL /* no engine */);
     if (!ctx) goto err;
-    if (!EVP_PKEY_sign_init(ctx)) goto err;
+    if (EVP_PKEY_sign_init(ctx) != 1) goto err;
     if (!setup_pss_sign_ctx(ctx, p_rsa->padding, p_rsa->hashMode, &md)) goto err;
     if (EVP_PKEY_sign(ctx, NULL, &signature_length, digest, get_digest_length(p_rsa->hashMode)) != 1) goto err;
 
