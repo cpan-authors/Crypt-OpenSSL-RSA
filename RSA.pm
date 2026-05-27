@@ -121,13 +121,13 @@ Crypt::OpenSSL::RSA - RSA encoding and decoding, using the openSSL libraries
   Crypt::OpenSSL::Random::random_seed($good_entropy);
   Crypt::OpenSSL::RSA->import_random_seed();
   $rsa_pub = Crypt::OpenSSL::RSA->new_public_key($key_string);
-  $ciphertext = $rsa->encrypt($plaintext);
+  $ciphertext = $rsa_pub->encrypt($plaintext);
 
   $rsa_priv = Crypt::OpenSSL::RSA->new_private_key($key_string);
-  $plaintext = $rsa->decrypt($ciphertext);
+  $plaintext = $rsa_priv->decrypt($ciphertext);
 
-  $rsa = Crypt::OpenSSL::RSA->generate_key(1024); # or
-  $rsa = Crypt::OpenSSL::RSA->generate_key(1024, $prime);
+  $rsa = Crypt::OpenSSL::RSA->generate_key(2048); # or
+  $rsa = Crypt::OpenSSL::RSA->generate_key(2048, $prime);
 
   print "private key is:\n", $rsa->get_private_key_string();
   print "public key (in PKCS1 format) is:\n",
@@ -135,9 +135,9 @@ Crypt::OpenSSL::RSA - RSA encoding and decoding, using the openSSL libraries
   print "public key (in X509 format) is:\n",
         $rsa->get_public_key_x509_string();
 
-  $rsa_priv->use_md5_hash(); # insecure. use_sha256_hash or use_sha1_hash are the default
+  $rsa_priv->use_md5_hash(); # insecure. use_sha256_hash is the default
   $signature = $rsa_priv->sign($plaintext);
-  print "Signed correctly\n" if ($rsa->verify($plaintext, $signature));
+  print "Signed correctly\n" if ($rsa_pub->verify($plaintext, $signature));
 
 =head1 SECURITY
 
@@ -262,8 +262,8 @@ Return the Base64/DER-encoded PKCS1 representation of the public
 key.  This string has
 header and footer lines:
 
-  -----BEGIN RSA PUBLIC KEY------
-  -----END RSA PUBLIC KEY------
+  -----BEGIN RSA PUBLIC KEY-----
+  -----END RSA PUBLIC KEY-----
 
 =item get_public_key_pkcs1_string
 
@@ -278,8 +278,8 @@ Return the Base64/DER-encoded representation of the "subject
 public key", suitable for use in X509 certificates.  This string has
 header and footer lines:
 
-  -----BEGIN PUBLIC KEY------
-  -----END PUBLIC KEY------
+  -----BEGIN PUBLIC KEY-----
+  -----END PUBLIC KEY-----
 
 and is the format that is produced by running C<openssl rsa -pubout>.
 
@@ -289,8 +289,8 @@ Return the Base64/DER-encoded PKCS1 representation of the private
 key.  This string has
 header and footer lines:
 
-  -----BEGIN RSA PRIVATE KEY------
-  -----END RSA PRIVATE KEY------
+  -----BEGIN RSA PRIVATE KEY-----
+  -----END RSA PRIVATE KEY-----
 
 2 optional parameters can be passed for passphrase protected private key
 string:
@@ -344,11 +344,16 @@ are supported; OAEP and PSS will croak.
 
 =item sign
 
-Sign a string using the secret (portion of the) key.
+Sign a binary string using the secret (portion of the) key.
+Returns the signature as a binary string.  Croaks if the key is
+public only.
 
 =item verify
 
-Check the signature on a text.
+Verify the signature on a text.  Arguments are the original
+plaintext followed by the signature (both as binary strings).
+Returns true if the signature is valid, false otherwise.  May
+croak on internal errors.
 
 =back
 
@@ -425,15 +430,14 @@ Note that this is considered B<insecure>.
 =item use_sha1_hash
 
 Use the RFC 3174 Secure Hashing Algorithm (FIPS 180-1) when signing
-and verifying messages. This is the default, when use_sha256_hash is
-not available.
+and verifying messages.
 
 =item use_sha224_hash, use_sha256_hash, use_sha384_hash, use_sha512_hash
 
 These FIPS 180-2 hash algorithms, for use when signing and verifying
-messages, are only available with newer openssl versions (>= 0.9.8).
+messages, require OpenSSL E<gt>= 0.9.8.
 
-use_sha256_hash is the default hash mode when available.
+C<use_sha256_hash> is the default hash mode.
 
 =item use_ripemd160_hash
 
