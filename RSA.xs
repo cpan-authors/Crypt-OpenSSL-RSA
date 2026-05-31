@@ -230,40 +230,33 @@ int get_digest_length(int hash_method)
 
 EVP_MD *get_md_bynid(int hash_method)
 {
+    const char *name;
+    EVP_MD *md;
+
     switch(hash_method)
     {
-        case NID_md5:
-            return EVP_MD_fetch(NULL, "md5", NULL);
-            break;
-        case NID_sha1:
-            return EVP_MD_fetch(NULL, "sha1", NULL);
-            break;
+        case NID_md5:      name = "md5";      break;
+        case NID_sha1:     name = "sha1";     break;
 #ifdef SHA512_DIGEST_LENGTH
-        case NID_sha224:
-            return EVP_MD_fetch(NULL, "sha224", NULL);
-            break;
-        case NID_sha256:
-            return EVP_MD_fetch(NULL, "sha256", NULL);
-            break;
-        case NID_sha384:
-            return EVP_MD_fetch(NULL, "sha384", NULL);
-            break;
-        case NID_sha512:
-            return EVP_MD_fetch(NULL, "sha512", NULL);
-            break;
+        case NID_sha224:   name = "sha224";   break;
+        case NID_sha256:   name = "sha256";   break;
+        case NID_sha384:   name = "sha384";   break;
+        case NID_sha512:   name = "sha512";   break;
 #endif
-        case NID_ripemd160:
-            return EVP_MD_fetch(NULL, "ripemd160", NULL);
-            break;
+        case NID_ripemd160: name = "ripemd160"; break;
 #ifdef WHIRLPOOL_DIGEST_LENGTH
-        case NID_whirlpool:
-            return EVP_MD_fetch(NULL, "whirlpool", NULL);
-            break;
+        case NID_whirlpool: name = "whirlpool"; break;
 #endif
         default:
             croak("Unknown digest hash mode %u", hash_method);
-            break;
+            return NULL;
     }
+
+    md = EVP_MD_fetch(NULL, name, NULL);
+    if (!md)
+        croak("Digest algorithm '%s' is not available"
+              " (you may need to load the legacy provider)", name);
+    return md;
 }
 
 /* Configure PSS/PKCS1 padding, signature digest, and MGF1 on an already-initialised
