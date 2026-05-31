@@ -62,7 +62,7 @@ my ( $n, $e, $d, $p, $q ) = $rsa->get_key_parameters();
 }
 
 # 5. check_key() returns exactly 1, not just truthy
-# OpenSSL's RSA_check_key/EVP_PKEY_private_check can return -1 on error,
+# OpenSSL's RSA_check_key/EVP_PKEY_check can return -1 on error,
 # which is truthy in Perl.  The XS code must normalize to 0/1.
 {
     cmp_ok( $rsa->check_key(), '==', 1,
