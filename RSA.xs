@@ -100,6 +100,7 @@ typedef struct
     EVP_PKEY* rsa;
     int padding;
     int hashMode;
+    int oaepHashMode;   /* hash for OAEP padding (label hash + MGF1); default NID_sha1 */
     int is_private_key;  /* cached once at construction; avoids per-call BIGNUM alloc on 3.x */
 } rsaData;
 
@@ -182,6 +183,7 @@ SV* make_rsa_obj(SV* p_proto, EVP_PKEY* p_rsa)
 #else
     rsa->hashMode = NID_sha1;
 #endif
+    rsa->oaepHashMode = NID_sha1;
     rsa->padding = RSA_PKCS1_OAEP_PADDING;
     rsa->is_private_key = _detect_private_key(p_rsa);
     return sv_bless(
@@ -434,7 +436,7 @@ static void check_max_message_length(rsaData* p_rsa, STRLEN from_length) {
     size = EVP_PKEY_get_size(p_rsa->rsa);
 
     if (p_rsa->padding == RSA_PKCS1_OAEP_PADDING) {
-        max_len = size - 42;  /* 2 * SHA1_DIGEST_LENGTH + 2 */
+        max_len = size - 2 * get_digest_length(p_rsa->oaepHashMode) - 2;
         pad_name = "OAEP";
     } else if (p_rsa->padding == RSA_PKCS1_PADDING) {
         max_len = size - 11;  /* PKCS#1 v1.5 overhead */
@@ -480,6 +482,7 @@ SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
     }
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     EVP_PKEY_CTX *ctx = NULL;
+    EVP_MD *oaep_md = NULL;
     int error = 0;
 
     if (is_encrypt) {
@@ -508,20 +511,34 @@ SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
 
     THROW(init_crypt(ctx) == 1);
     THROW(EVP_PKEY_CTX_set_rsa_padding(ctx, p_rsa->padding) > 0);
+
+    if (is_encrypt && p_rsa->padding == RSA_PKCS1_OAEP_PADDING) {
+        oaep_md = get_md_bynid(p_rsa->oaepHashMode);
+        THROW(oaep_md);
+        THROW(EVP_PKEY_CTX_set_rsa_oaep_md(ctx, oaep_md) > 0);
+        THROW(EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, oaep_md) > 0);
+    }
+
     THROW(p_crypt(ctx, NULL, &to_length, from, from_length) == 1);
     Newx(to, to_length, UNSIGNED_CHAR);
     THROW(to);
     THROW(p_crypt(ctx, to, &to_length, from, from_length) == 1);
 
     EVP_PKEY_CTX_free(ctx);
+    if (oaep_md) EVP_MD_free(oaep_md);
 
     goto crypt_done;
     err:
         if (ctx) EVP_PKEY_CTX_free(ctx);
+        if (oaep_md) EVP_MD_free(oaep_md);
         Safefree(to);
         CHECK_OPEN_SSL(0);
     crypt_done:
 #else
+    if (is_encrypt && p_rsa->padding == RSA_PKCS1_OAEP_PADDING
+        && p_rsa->oaepHashMode != NID_sha1) {
+        croak("OAEP with non-SHA1 hash requires OpenSSL 3.0 or later");
+    }
     size = EVP_PKEY_get_size(p_rsa->rsa);
     CHECK_NEW(to, size, UNSIGNED_CHAR);
     to_length = p_crypt(
@@ -1408,6 +1425,40 @@ use_pkcs1_pss_padding(p_rsa)
     rsaData* p_rsa;
   CODE:
     p_rsa->padding = RSA_PKCS1_PSS_PADDING;
+
+void
+use_sha1_oaep_hash(p_rsa)
+    rsaData* p_rsa;
+  CODE:
+    p_rsa->oaepHashMode = NID_sha1;
+
+#ifdef SHA512_DIGEST_LENGTH
+
+void
+use_sha224_oaep_hash(p_rsa)
+    rsaData* p_rsa;
+  CODE:
+    p_rsa->oaepHashMode = NID_sha224;
+
+void
+use_sha256_oaep_hash(p_rsa)
+    rsaData* p_rsa;
+  CODE:
+    p_rsa->oaepHashMode = NID_sha256;
+
+void
+use_sha384_oaep_hash(p_rsa)
+    rsaData* p_rsa;
+  CODE:
+    p_rsa->oaepHashMode = NID_sha384;
+
+void
+use_sha512_oaep_hash(p_rsa)
+    rsaData* p_rsa;
+  CODE:
+    p_rsa->oaepHashMode = NID_sha512;
+
+#endif
 
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
 

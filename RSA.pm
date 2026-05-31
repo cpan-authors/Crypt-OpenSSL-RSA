@@ -382,10 +382,14 @@ C<use_pkcs1_oaep_padding()> for encryption.
 
 =item use_pkcs1_oaep_padding
 
-Use C<EME-OAEP> padding as defined in PKCS #1 v2.0 with SHA-1, MGF1 and
+Use C<EME-OAEP> padding as defined in PKCS #1 v2.0 with MGF1 and
 an empty encoding parameter. This mode of padding is recommended for
 all new applications.  It is the default mode used by
 C<Crypt::OpenSSL::RSA> but is only valid for encryption/decryption.
+
+The OAEP hash algorithm defaults to SHA-1 for backward compatibility.
+Use C<use_sha256_oaep_hash()> (or other C<use_*_oaep_hash()> methods)
+to select a stronger hash.  See L</OAEP Hash Methods> below.
 
 =item use_pkcs1_pss_padding
 
@@ -406,6 +410,32 @@ B<Not available on OpenSSL 3.x or later.>  Calling this method will
 croak with a descriptive error message suggesting alternatives.
 Use C<use_pkcs1_oaep_padding()> for encryption or
 C<use_pkcs1_pss_padding()> for signatures.
+
+=back
+
+=head1 OAEP Hash Methods
+
+These methods control the hash algorithm used for OAEP padding (both the
+label hash and the MGF1 mask generation function).  The OAEP hash is
+independent of the signature hash set by C<use_sha256_hash()> etc.
+
+B<On OpenSSL 3.x>, any of the methods below can be used.
+B<On pre-3.x OpenSSL>, only SHA-1 is supported for OAEP; calling
+C<encrypt()>/C<decrypt()> after setting a non-SHA1 OAEP hash will croak.
+
+=over
+
+=item use_sha1_oaep_hash
+
+Use SHA-1 for OAEP (the default).
+
+=item use_sha224_oaep_hash, use_sha256_oaep_hash, use_sha384_oaep_hash, use_sha512_oaep_hash
+
+Use the specified SHA-2 hash for OAEP.  C<use_sha256_oaep_hash> is
+recommended for new applications that need to move away from SHA-1.
+
+These are only available when OpenSSL was built with SHA-2 support
+(>= 0.9.8, which covers all supported versions).
 
 =back
 
@@ -452,7 +482,10 @@ the text to be encrypted should be:
 
 =item pkcs1_oaep_padding
 
-at most 42 bytes less than this size.
+at most C<2 * hash_length + 2> bytes less than this size, where
+C<hash_length> is the digest size of the OAEP hash algorithm.
+With the default SHA-1, this is 42 bytes; with SHA-256 it is 66 bytes;
+with SHA-512 it is 130 bytes.  See L</OAEP Hash Methods>.
 
 =item pkcs1_padding or sslv23_padding
 
