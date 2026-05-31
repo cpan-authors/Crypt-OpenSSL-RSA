@@ -67,6 +67,29 @@ static RSA* _load_pkcs8_der_key(BIO* bio, const char* passphrase)
     EVP_PKEY_free(pkey);
     return rsa;
 }
+
+/* Pre-3.x helper for loading unencrypted PKCS#8 DER private keys.
+   d2i_RSAPrivateKey_bio only handles PKCS#1 format; unencrypted
+   PKCS#8 (PrivateKeyInfo) requires d2i_PKCS8_PRIV_KEY_INFO_bio. */
+static RSA* _load_pkcs8_unenc_der_key(BIO* bio)
+{
+    PKCS8_PRIV_KEY_INFO *p8inf;
+    EVP_PKEY* pkey;
+    RSA* rsa;
+
+    p8inf = d2i_PKCS8_PRIV_KEY_INFO_bio(bio, NULL);
+    if (!p8inf)
+        return NULL;
+
+    pkey = EVP_PKCS82PKEY(p8inf);
+    PKCS8_PRIV_KEY_INFO_free(p8inf);
+    if (!pkey)
+        return NULL;
+
+    rsa = EVP_PKEY_get1_RSA(pkey);
+    EVP_PKEY_free(pkey);
+    return rsa;
+}
 #endif
 
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
@@ -695,6 +718,13 @@ _new_private_key_der(proto, key_string_SV, passphrase_SV=&PL_sv_undef)
         pkey = _load_pkcs8_der_key(bio, passphrase);
     } else {
         pkey = d2i_RSAPrivateKey_bio(bio, NULL);
+        if (!pkey) {
+            ERR_clear_error();
+            BIO_free(bio);
+            bio = BIO_new_mem_buf(keyString, keyStringLength);
+            if (bio)
+                pkey = _load_pkcs8_unenc_der_key(bio);
+        }
     }
 #endif
     BIO_free(bio);
