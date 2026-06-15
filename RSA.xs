@@ -480,7 +480,6 @@ SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
     }
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     EVP_PKEY_CTX *ctx = NULL;
-    int error = 0;
 
     if (is_encrypt) {
         /* Encryption path: OAEP is the only safe padding for encrypt/decrypt. */
@@ -504,14 +503,14 @@ SV* rsa_crypt(rsaData* p_rsa, SV* p_from,
 
     ctx = EVP_PKEY_CTX_new_from_pkey(NULL, (EVP_PKEY* )p_rsa->rsa, NULL);
 
-    THROW(ctx);
+    if (!ctx) goto err;
 
-    THROW(init_crypt(ctx) == 1);
-    THROW(EVP_PKEY_CTX_set_rsa_padding(ctx, p_rsa->padding) > 0);
-    THROW(p_crypt(ctx, NULL, &to_length, from, from_length) == 1);
+    if (init_crypt(ctx) != 1) goto err;
+    if (EVP_PKEY_CTX_set_rsa_padding(ctx, p_rsa->padding) <= 0) goto err;
+    if (p_crypt(ctx, NULL, &to_length, from, from_length) != 1) goto err;
     Newx(to, to_length, UNSIGNED_CHAR);
-    THROW(to);
-    THROW(p_crypt(ctx, to, &to_length, from, from_length) == 1);
+    if (!to) goto err;
+    if (p_crypt(ctx, to, &to_length, from, from_length) != 1) goto err;
 
     EVP_PKEY_CTX_free(ctx);
 
@@ -800,16 +799,15 @@ get_public_key_string(p_rsa)
     BIO* stringBIO;
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     OSSL_ENCODER_CTX *ctx = NULL;
-    int error = 0;
 #endif
   CODE:
     CHECK_OPEN_SSL(stringBIO = BIO_new(BIO_s_mem()));
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     ctx = OSSL_ENCODER_CTX_new_for_pkey(p_rsa->rsa, OSSL_KEYMGMT_SELECT_PUBLIC_KEY,
             "PEM", "PKCS1", NULL);
-    THROW(ctx != NULL && OSSL_ENCODER_CTX_get_num_encoders(ctx));
+    if (!ctx || !OSSL_ENCODER_CTX_get_num_encoders(ctx)) goto err;
 
-    THROW(OSSL_ENCODER_to_bio(ctx, stringBIO) == 1);
+    if (OSSL_ENCODER_to_bio(ctx, stringBIO) != 1) goto err;
 
     OSSL_ENCODER_CTX_free(ctx);
     ctx = NULL;
@@ -1432,7 +1430,6 @@ sign(p_rsa, text_SV)
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     EVP_PKEY_CTX *ctx = NULL;
     EVP_MD *md = NULL;
-    int error = 0;
 #endif
   CODE:
 {
@@ -1445,15 +1442,15 @@ sign(p_rsa, text_SV)
     CHECK_OPEN_SSL(digest = get_message_digest(text_SV, p_rsa->hashMode, digest_buf));
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     ctx = EVP_PKEY_CTX_new(p_rsa->rsa, NULL /* no engine */);
-    THROW(ctx);
-    THROW(EVP_PKEY_sign_init(ctx));
-    THROW(setup_pss_sign_ctx(ctx, p_rsa->padding, p_rsa->hashMode, &md));
-    THROW(EVP_PKEY_sign(ctx, NULL, &signature_length, digest, get_digest_length(p_rsa->hashMode)) == 1);
+    if (!ctx) goto err;
+    if (EVP_PKEY_sign_init(ctx) != 1) goto err;
+    if (!setup_pss_sign_ctx(ctx, p_rsa->padding, p_rsa->hashMode, &md)) goto err;
+    if (EVP_PKEY_sign(ctx, NULL, &signature_length, digest, get_digest_length(p_rsa->hashMode)) != 1) goto err;
 
     Newx(signature, signature_length, UNSIGNED_CHAR);
-    THROW(signature);
+    if (!signature) goto err;
 
-    THROW(EVP_PKEY_sign(ctx, signature, &signature_length, digest, get_digest_length(p_rsa->hashMode)) == 1);
+    if (EVP_PKEY_sign(ctx, signature, &signature_length, digest, get_digest_length(p_rsa->hashMode)) != 1) goto err;
 
     EVP_MD_free(md);
     EVP_PKEY_CTX_free(ctx);
@@ -1492,9 +1489,8 @@ verify(p_rsa, text_SV, sig_SV)
     SV* text_SV;
     SV* sig_SV;
 PREINIT:
-    int verify_result;
+    int verify_result = -1;
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    int error = 0;
     EVP_PKEY_CTX *ctx = NULL;
     EVP_MD *md = NULL;
 #endif
@@ -1514,9 +1510,9 @@ PPCODE:
     CHECK_OPEN_SSL(digest = get_message_digest(text_SV, p_rsa->hashMode, digest_buf));
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     ctx = EVP_PKEY_CTX_new(p_rsa->rsa, NULL /* no engine */);
-    THROW(ctx);
-    THROW(EVP_PKEY_verify_init(ctx) == 1);
-    THROW(setup_pss_sign_ctx(ctx, p_rsa->padding, p_rsa->hashMode, &md));
+    if (!ctx) goto err;
+    if (EVP_PKEY_verify_init(ctx) != 1) goto err;
+    if (!setup_pss_sign_ctx(ctx, p_rsa->padding, p_rsa->hashMode, &md)) goto err;
 
     verify_result = EVP_PKEY_verify(ctx, sig, sig_length, digest, get_digest_length(p_rsa->hashMode));
     EVP_MD_free(md);
