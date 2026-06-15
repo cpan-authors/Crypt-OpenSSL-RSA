@@ -859,6 +859,7 @@ generate_key(proto, bitsSV, exponent = 65537)
     if (exponent < 3 || (exponent % 2) == 0)
         croak("RSA exponent must be odd and >= 3 (got %lu)", exponent);
     e = BN_new();
+    CHECK_OPEN_SSL(e);
     BN_set_word(e, exponent);
 #if OPENSSL_VERSION_NUMBER < 0x00908000L
     rsa = RSA_generate_key(SvIV(bitsSV), exponent, NULL, NULL);
@@ -867,6 +868,11 @@ generate_key(proto, bitsSV, exponent = 65537)
 #endif
 #if OPENSSL_VERSION_NUMBER >= 0x00908000L && OPENSSL_VERSION_NUMBER < 0x30000000L
     rsa = RSA_new();
+    if (!rsa)
+    {
+        BN_free(e);
+        croakSsl(__FILE__, __LINE__);
+    }
     if (!RSA_generate_key_ex(rsa, SvIV(bitsSV), e, NULL))
     {
         BN_free(e);
