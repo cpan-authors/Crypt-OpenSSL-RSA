@@ -763,6 +763,10 @@ get_private_key_pkcs8_string(p_rsa, passphrase_SV=&PL_sv_undef, cipher_name_SV=&
     char* cipher_name;
     const EVP_CIPHER* enc = NULL;
   CODE:
+    if (!_is_private(p_rsa))
+    {
+        croak("Public keys cannot export private key strings");
+    }
     if (SvPOK(cipher_name_SV) && !SvPOK(passphrase_SV)) {
         croak("Passphrase is required for cipher");
     }
