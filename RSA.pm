@@ -85,6 +85,7 @@ sub get_key_parameters {
 }
 
 *get_public_key_pkcs1_string = \&get_public_key_string;
+*get_public_key_pkcs1_der_string = \&get_public_key_der_string;
 
 unless ( defined &use_sslv23_padding ) {
     *use_sslv23_padding = sub {
@@ -314,6 +315,41 @@ the private-key counterpart of C<get_public_key_x509_string>.
 
 Accepts the same optional passphrase and cipher-name parameters as
 C<get_private_key_string>.
+
+=item get_public_key_der_string
+
+Return the DER-encoded PKCS#1 C<RSAPublicKey> representation of the
+public key as a binary string.  This is the DER equivalent of
+C<get_public_key_string>.
+
+=item get_public_key_pkcs1_der_string
+
+Alias for C<get_public_key_der_string>.
+
+=item get_public_key_x509_der_string
+
+Return the DER-encoded X.509 C<SubjectPublicKeyInfo> representation
+of the public key as a binary string.  This is the DER equivalent of
+C<get_public_key_x509_string>, and the format produced by
+C<openssl rsa -pubout -outform DER>.
+
+=item get_private_key_der_string
+
+Return the DER-encoded PKCS#1 C<RSAPrivateKey> representation of the
+private key as a binary string.  This is the DER equivalent of
+C<get_private_key_string> (without encryption support, since the
+PKCS#1 DER format has no standard encryption wrapper).
+
+=item get_private_key_pkcs8_der_string
+
+Return the DER-encoded PKCS#8 C<PrivateKeyInfo> representation of the
+private key as a binary string.  This is the DER equivalent of
+C<get_private_key_pkcs8_string>, and the format produced by
+C<openssl pkey -outform DER>.
+
+Accepts the same optional passphrase and cipher-name parameters as
+C<get_private_key_string>.  When a passphrase is provided, the output
+is an C<EncryptedPrivateKeyInfo> structure.
 
 =item encrypt
 

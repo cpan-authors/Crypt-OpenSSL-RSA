@@ -3,10 +3,13 @@ use warnings;
 use Test::More;
 use MIME::Base64;
 use Crypt::OpenSSL::RSA;
+use Crypt::OpenSSL::Guess qw(openssl_version);
 
 use File::Temp qw(tempfile);
 
-BEGIN { plan tests => 30 }
+my ($major, $minor, $patch) = openssl_version();
+
+BEGIN { plan tests => 49 }
 
 # --- Generate a key pair for testing ---
 
@@ -179,3 +182,87 @@ SKIP: {
     like($@, qr/not an RSA key|ASN1|expecting an rsa key/i,
         "_new_public_key_x509_der gives appropriate error for non-RSA DER key");
 }
+
+# --- DER export tests ---
+
+# PKCS#1 public key DER export
+my $pub_pkcs1_der_export = $rsa->get_public_key_der_string();
+is( ord(substr($pub_pkcs1_der_export, 0, 1)), 0x30,
+    "get_public_key_der_string starts with SEQUENCE tag" );
+is( $pub_pkcs1_der_export, $pkcs1_der,
+    "get_public_key_der_string matches pem_to_der of PEM export" );
+
+my $pub_from_pkcs1_der_export = Crypt::OpenSSL::RSA->new_public_key($pub_pkcs1_der_export);
+$pub_from_pkcs1_der_export->use_sha256_hash();
+ok( $pub_from_pkcs1_der_export->verify($plaintext, $sig),
+    "PKCS#1 DER export round-trips and verifies" );
+
+# Alias test
+is( $rsa->get_public_key_pkcs1_der_string(), $pub_pkcs1_der_export,
+    "get_public_key_pkcs1_der_string is alias for get_public_key_der_string" );
+
+# X.509 public key DER export
+my $pub_x509_der_export = $rsa->get_public_key_x509_der_string();
+is( ord(substr($pub_x509_der_export, 0, 1)), 0x30,
+    "get_public_key_x509_der_string starts with SEQUENCE tag" );
+is( $pub_x509_der_export, $x509_der,
+    "get_public_key_x509_der_string matches pem_to_der of PEM export" );
+
+my $pub_from_x509_der_export = Crypt::OpenSSL::RSA->new_public_key($pub_x509_der_export);
+$pub_from_x509_der_export->use_sha256_hash();
+ok( $pub_from_x509_der_export->verify($plaintext, $sig),
+    "X.509 DER export round-trips and verifies" );
+
+# PKCS#1 private key DER export
+my $priv_pkcs1_der_export = $rsa->get_private_key_der_string();
+is( ord(substr($priv_pkcs1_der_export, 0, 1)), 0x30,
+    "get_private_key_der_string starts with SEQUENCE tag" );
+is( $priv_pkcs1_der_export, $priv_der,
+    "get_private_key_der_string matches pem_to_der of PEM export" );
+
+my $priv_from_der_export = Crypt::OpenSSL::RSA->new_private_key($priv_pkcs1_der_export);
+ok( $priv_from_der_export->is_private(),
+    "PKCS#1 DER export round-trips as private key" );
+$priv_from_der_export->use_sha256_hash();
+my $sig_from_der_export = $priv_from_der_export->sign($plaintext);
+ok( $pub_from_x509_der->verify($plaintext, $sig_from_der_export),
+    "signature from PKCS#1 DER-exported private key verifies" );
+
+# Unencrypted PKCS#8 private key DER export
+my $pkcs8_pem = $rsa->get_private_key_pkcs8_string();
+my $pkcs8_der_expected = pem_to_der($pkcs8_pem);
+my $pkcs8_der_export = $rsa->get_private_key_pkcs8_der_string();
+is( ord(substr($pkcs8_der_export, 0, 1)), 0x30,
+    "get_private_key_pkcs8_der_string starts with SEQUENCE tag" );
+is( $pkcs8_der_export, $pkcs8_der_expected,
+    "get_private_key_pkcs8_der_string matches pem_to_der of PEM export" );
+
+SKIP: {
+    skip "Unencrypted PKCS#8 DER import requires OpenSSL 3.x", 1
+        if $major < 3 || !defined $patch;
+    my $priv_from_pkcs8_der_export = Crypt::OpenSSL::RSA->new_private_key($pkcs8_der_export);
+    ok( $priv_from_pkcs8_der_export->is_private(),
+        "PKCS#8 DER export round-trips as private key" );
+}
+
+# Encrypted PKCS#8 DER export
+my $der_pass = 'test_export_pass';
+my $enc_pkcs8_der_export = $rsa->get_private_key_pkcs8_der_string($der_pass, 'aes-128-cbc');
+is( ord(substr($enc_pkcs8_der_export, 0, 1)), 0x30,
+    "encrypted PKCS#8 DER export starts with SEQUENCE tag" );
+my $priv_from_enc_pkcs8_der = Crypt::OpenSSL::RSA->new_private_key($enc_pkcs8_der_export, $der_pass);
+ok( $priv_from_enc_pkcs8_der->is_private(),
+    "encrypted PKCS#8 DER export round-trips with passphrase" );
+
+eval { Crypt::OpenSSL::RSA->new_private_key($enc_pkcs8_der_export, 'wrong') };
+ok( $@, "encrypted PKCS#8 DER export rejects wrong passphrase" );
+
+# Error: public key cannot export private DER
+my $pub_only = Crypt::OpenSSL::RSA->new_public_key($x509_pem);
+eval { $pub_only->get_private_key_der_string() };
+like( $@, qr/Public keys cannot/,
+    "get_private_key_der_string croaks on public-only key" );
+
+eval { $pub_only->get_private_key_pkcs8_der_string() };
+like( $@, qr/Public keys cannot/,
+    "get_private_key_pkcs8_der_string croaks on public-only key" );
