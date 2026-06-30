@@ -1446,7 +1446,7 @@ sign(p_rsa, text_SV)
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     ctx = EVP_PKEY_CTX_new(p_rsa->rsa, NULL /* no engine */);
     THROW(ctx);
-    THROW(EVP_PKEY_sign_init(ctx));
+    THROW(EVP_PKEY_sign_init(ctx) == 1);
     THROW(setup_pss_sign_ctx(ctx, p_rsa->padding, p_rsa->hashMode, &md));
     THROW(EVP_PKEY_sign(ctx, NULL, &signature_length, digest, get_digest_length(p_rsa->hashMode)) == 1);
 
