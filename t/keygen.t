@@ -177,5 +177,8 @@ plan tests => 29;
     like($@, qr/at least 512 bits/, "generate_key croaks on 511-bit key size");
 
     my $rsa = eval { Crypt::OpenSSL::RSA->generate_key(512) };
-    ok($rsa && !$@, "generate_key accepts 512-bit key size (minimum)");
+    SKIP: {
+        skip "OpenSSL rejects 512-bit keys at this security level", 1 if $@;
+        ok($rsa, "generate_key accepts 512-bit key size (minimum)");
+    }
 }
