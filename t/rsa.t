@@ -68,7 +68,11 @@ sub _check_for_croak {
 Crypt::OpenSSL::Random::random_seed("OpenSSL needs at least 32 bytes.");
 Crypt::OpenSSL::RSA->import_random_seed();
 
-is( Crypt::OpenSSL::RSA->generate_key(512)->size() * 8, 512, "512-bit key has correct size" );
+SKIP: {
+    my $rsa_512 = eval { Crypt::OpenSSL::RSA->generate_key(512) };
+    skip "OpenSSL rejects 512-bit keys at this security level", 1 if $@;
+    is( $rsa_512->size() * 8, 512, "512-bit key has correct size" );
+}
 
 my $rsa = Crypt::OpenSSL::RSA->generate_key(2048);
 is( $rsa->size() * 8, 2048, "2048-bit key has correct size" );
@@ -183,7 +187,7 @@ _check_for_croak(
 
 # check subclassing
 
-eval { Crypt::OpenSSL::RSA::Subpackage->generate_key(512); };
+eval { Crypt::OpenSSL::RSA::Subpackage->generate_key(2048); };
 ok( !$@, "subclass generate_key() succeeds" );
 
 package Crypt::OpenSSL::RSA::Subpackage;
