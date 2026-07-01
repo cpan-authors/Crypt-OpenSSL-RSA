@@ -160,8 +160,13 @@ static int _detect_private_key(EVP_PKEY* p_rsa)
     EVP_PKEY_get_bn_param(p_rsa, OSSL_PKEY_PARAM_RSA_D, &d);
     if (d) {
         BN_clear_free(d);
+        ERR_clear_error();
         return 1;
     }
+    /* EVP_PKEY_get_bn_param pushes errors when the param is absent
+       (e.g. public key has no d).  Clear them so they don't leak
+       into the next croakSsl() call from an unrelated operation. */
+    ERR_clear_error();
     return 0;
 #else
     const BIGNUM* d = NULL;
@@ -1057,7 +1062,8 @@ _new_key_from_parameters(proto, n, e, d, p, q)
         params = OSSL_PARAM_BLD_to_param(params_build);
         THROW(params != NULL);
 
-        int status = EVP_PKEY_fromdata(pctx, &rsa, EVP_PKEY_KEYPAIR, params);
+        int selection = (d != NULL) ? EVP_PKEY_KEYPAIR : EVP_PKEY_PUBLIC_KEY;
+        int status = EVP_PKEY_fromdata(pctx, &rsa, selection, params);
         OSSL_PARAM_BLD_free(params_build);
         OSSL_PARAM_free(params);
         params_build = NULL;
