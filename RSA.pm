@@ -51,7 +51,7 @@ sub new_private_key {
     croak "unrecognized key format: expected PEM-encoded key (starting with '-----BEGIN') "
         . "or DER-encoded key (binary ASN.1 data)"
         unless defined $p_key_string && length($p_key_string) > 0;
-    if ( $p_key_string =~ /^-----/ ) {
+    if ( $p_key_string =~ /-----/m ) {
         return $proto->_new_private_key_pem($p_key_string, @rest);
     }
     elsif ( substr($p_key_string, 0, 1) eq "\x30" ) {
